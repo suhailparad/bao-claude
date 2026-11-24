@@ -61,6 +61,8 @@ class Pose:
     arm_r: float = 15.0
     squash: float = 1.0  # vertical body scale
     blush: bool = True
+    step: float = 0.0  # walking: >0 lifts the left foot, <0 the right one (−1..1)
+    flying: bool = False  # airborne: no ground shadow, feet tucked (birds)
     behind: list[Prop] = field(default_factory=list)  # drawn behind the arms
     front: list[Prop] = field(default_factory=list)  # drawn on top of everything
 
@@ -79,6 +81,11 @@ def outline_pen(w: float = 2.2) -> QPen:
 
 def ellipse(p: QPainter, cx: float, cy: float, rx: float, ry: float) -> None:
     p.drawEllipse(QPointF(cx, cy), rx, ry)
+
+
+def foot_lift(pose: Pose, height: float = 5.0) -> tuple[float, float]:
+    """How far (px) the left / right foot is raised for this pose's walking step."""
+    return max(0.0, pose.step) * height, max(0.0, -pose.step) * height
 
 
 def draw_arm(p: QPainter, sx: float, sy: float, angle: float) -> None:
@@ -169,10 +176,11 @@ def draw_panda(p: QPainter, pose: Pose, t: float) -> None:
     p.translate(0, pose.bob)
 
     # legs
+    lift_l, lift_r = foot_lift(pose)
     p.setPen(QPen(FUR_EDGE, 1.3))
     p.setBrush(BLACK)
-    ellipse(p, 60, 140, 13, 9)
-    ellipse(p, 100, 140, 13, 9)
+    ellipse(p, 60, 140 - lift_l, 13, 9)
+    ellipse(p, 100, 140 - lift_r, 13, 9)
     p.setPen(Qt.NoPen)
 
     # body (squash anchored at the feet)
@@ -569,6 +577,20 @@ def sleeping(t: float, i: int) -> Pose:
     )
 
 
+def roaming(t: float, i: int) -> Pose:
+    """A front-facing waddle: rock side to side, bounce on each step, arms swinging."""
+    w = math.sin(t * TAU)
+    return Pose(
+        bob=-abs(w) * 3,
+        head_tilt=6 * w,
+        step=w,
+        arm_l=22 + 16 * w,
+        arm_r=22 - 16 * w,
+        eyes="closed" if i == 5 else "open",
+        mouth="smile",
+    )
+
+
 ANIMATIONS: dict[str, tuple[float, bool, int, Callable[[float, int], Pose]]] = {
     "idle": (6, True, 8, idle),
     "greeting": (10, True, 10, greeting),
@@ -582,7 +604,10 @@ ANIMATIONS: dict[str, tuple[float, bool, int, Callable[[float, int], Pose]]] = {
     "done": (12, True, 12, done),
     "compacting": (6, True, 8, compacting),
     "sleeping": (3, True, 9, sleeping),
+    "roaming": (8, True, 8, roaming),  # used while wandering around (see bao/roam.py)
 }
+
+WALK = {"style": "walk", "speed": 36, "faces": "front"}
 
 
 Drawer = Callable[[QPainter, Pose, float], None]
@@ -599,15 +624,25 @@ def render_frame(pose: Pose, t: float, draw: Drawer | None = None) -> QImage:
 
 
 def generate(
-    out: Path, draw: Drawer | None = None, char_id: str = "panda", name: str = "Panda"
+    out: Path,
+    draw: Drawer | None = None,
+    char_id: str = "panda",
+    name: str = "Panda",
+    poses: dict[str, Callable[[float, int], Pose]] | None = None,
+    roam: dict | None = None,
 ) -> dict[str, list[QImage]]:
-    """Render every animation with ``draw`` and (re)write ``out``'s frames + manifest."""
+    """Render every animation with ``draw`` and (re)write ``out``'s frames + manifest.
+
+    ``poses`` replaces the pose function of some states (e.g. a bird flies instead of
+    walking); ``roam`` is the manifest's roaming style (default: walk).
+    """
     frames_root = out / "frames"
     if frames_root.exists():
         shutil.rmtree(frames_root)
     states = {}
     rendered: dict[str, list[QImage]] = {}
     for state, (fps, loop, count, fn) in ANIMATIONS.items():
+        fn = (poses or {}).get(state, fn)
         d = frames_root / state
         d.mkdir(parents=True)
         imgs = []
@@ -629,6 +664,7 @@ def generate(
         "size": [SIZE, SIZE],
         "fallback_state": "idle",
         "states": states,
+        "roam": roam or WALK,
         "sounds": old.get("sounds", {}),  # owned by tools/gen_sounds.py
     }
     manifest_path.write_text(json.dumps(manifest, indent=2) + "\n")

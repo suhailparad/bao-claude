@@ -41,6 +41,7 @@ def test_builtin_character_covers_every_state(cid):
         assert s.value in ch.animations, s
     for variant in ("reading", "typing", "running"):
         assert ch.animation_for("working", variant).name == variant
+    assert ch.animation_for("roaming").name == "roaming"
     for cue in ("hello", "waiting", "alert", "done", "bye"):
         assert ch.sound_for(cue), cue
 
@@ -148,3 +149,14 @@ def test_quiet_hours_sanitized(pet_home):
         assert cfg.quiet_hours is None and cfg.do_not_disturb is True
     config_path().write_text(json.dumps({"quiet_hours": ["22:00", "7:30"]}))
     assert Config.load().quiet_hours == ["22:00", "7:30"]
+
+
+def test_roam_spec_in_manifests(tmp_path):
+    from bao.character import ManifestError, load_character
+
+    assert load_character(BUILTIN_DIR / "penguin").roam.style == "walk"
+    bird = load_character(BUILTIN_DIR / "hummingbird").roam
+    assert (bird.style, bird.faces) == ("fly", "left")
+    assert load_character(make_char(tmp_path / "a")).roam.style == "walk"  # default
+    with pytest.raises(ManifestError, match="roam"):
+        load_character(make_char(tmp_path / "b", roam={"style": "teleport"}))

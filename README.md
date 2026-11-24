@@ -64,6 +64,9 @@ bubble says how many sessions there are. Click the pet to jump to the session it
 ## Using it
 
 - **Drag** the pet anywhere. It remembers where you put it.
+- While Claude is idle or waiting for you, the pet **wanders around**: the panda, cat and
+  penguin waddle left and right, the hummingbird flies about. As soon as Claude gets to
+  work it hurries back to the spot you gave it. Turn it off with *Wander around when idle*.
 - **Click** the pet to jump to the terminal of the session it's showing. In Terminal and
   iTerm2 it picks the exact tab (macOS asks once to let bao control the app); in other
   apps (VS Code, Ghostty, WezTerm, Warp, …) it brings the app to the front.
@@ -88,7 +91,7 @@ animations; a small moon shows while it's on. Set `"quiet_hours": ["22:00", "08:
 config to turn it on automatically every day (the range may cross midnight).
 
 Settings live in `~/.bao/config.json` (character, scale, muted, volume, muted_cues,
-show_bubble, permission_reminder_seconds, do_not_disturb, quiet_hours, quit_after_minutes,
+show_bubble, roam, permission_reminder_seconds, do_not_disturb, quiet_hours, quit_after_minutes,
 position) and the log in `~/.bao/pet.log`.
 
 ## Make your own character
@@ -115,6 +118,7 @@ A character is just a folder with a `manifest.json`, PNG frames and sounds. Put 
                  "fps": 12, "loop": false, "next": "waiting"}
   },
   "sounds": {"hello": "sounds/hello.wav", "done": "system:Glass"},
+  "roam": {"style": "walk", "speed": 36, "faces": "front"},
   "fallback_state": "idle"
 }
 ```
@@ -123,6 +127,9 @@ A character is just a folder with a `manifest.json`, PNG frames and sounds. Put 
   `needs_permission`, `waiting`, `done`, `compacting`, `sleeping`. Any you leave out
   fall back to `fallback_state`. The tool variants fall back to `working` first.
 - Frames can be a folder of numbered PNGs or one sprite sheet.
+- Wandering: a `roaming` state is played while the pet walks or flies. `roam` (optional)
+  sets the `style` (`walk` along the ground or `fly` in the air), the `speed` in px/s
+  and which way the art `faces` (`front`, or `left`/`right` to mirror it toward travel).
 - Sound cues: `hello`, `waiting`, `alert`, `done`, `bye`. Use a `.wav` file in the
   folder, or `"system:<Name>"` for a macOS sound such as `system:Glass`.
 - A broken character is skipped (and logged), so it can't crash the pet. Run

@@ -150,8 +150,9 @@ def draw_penguin(p: QPainter, pose: Pose, t: float) -> None:
     p.save()
     p.translate(0, pose.bob)
 
-    draw_foot(p, 66, 144, -1)
-    draw_foot(p, 94, 144, 1)
+    lift_l, lift_r = gp.foot_lift(pose)
+    draw_foot(p, 66, 144 - lift_l, -1)
+    draw_foot(p, 94, 144 - lift_r, 1)
 
     # body (squash anchored at the feet): dark back, white belly, soft sheen
     p.save()

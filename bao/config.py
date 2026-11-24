@@ -45,6 +45,7 @@ class Config:
     muted: bool = False
     volume: float = 0.7
     show_bubble: bool = True
+    roam: bool = True  # wander around while idle / waiting, come back when work starts
     muted_cues: list[str] = field(default_factory=list)  # e.g. ["hello", "bye"]
     permission_reminder_seconds: float = 60.0  # nudge again about a pending permission (0 = off)
     do_not_disturb: bool = False  # no sounds; the pet still animates
@@ -98,6 +99,7 @@ class Config:
         )
         self.muted = bool(self.muted)
         self.show_bubble = bool(self.show_bubble)
+        self.roam = bool(self.roam)
         self.do_not_disturb = bool(self.do_not_disturb)
         qh = self.quiet_hours
         if qh is not None and not (

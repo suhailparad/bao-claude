@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any
 
 from .paths import home_dir
+from .roam import RoamSpec
 
 log = logging.getLogger(__name__)
 
@@ -55,6 +56,7 @@ class Character:
     animations: dict[str, Animation]
     sounds: dict[str, str] = field(default_factory=dict)
     fallback_state: str = "idle"
+    roam: RoamSpec = field(default_factory=RoamSpec)  # how it wanders when idle
 
     def animation_for(self, state: str, variant: str | None = None) -> Animation:
         """Most specific animation available: variant → state → fallback."""
@@ -153,6 +155,11 @@ def load_character(root: Path) -> Character:
         else:
             log.warning("character %s: sound %r for %r not found, skipping", cid, ref, cue)
 
+    try:
+        roam = RoamSpec.parse(data.get("roam"))
+    except ValueError as exc:
+        raise ManifestError(str(exc)) from exc
+
     return Character(
         id=cid,
         name=str(data.get("name") or cid),
@@ -161,6 +168,7 @@ def load_character(root: Path) -> Character:
         animations=anims,
         sounds=sounds,
         fallback_state=fallback,
+        roam=roam,
     )
 
 

@@ -68,7 +68,17 @@
       "frames": "frames/sleeping",
       "fps": 3,
       "loop": true
+    },
+    "roaming": {
+      "frames": "frames/roaming",
+      "fps": 8,
+      "loop": true
     }
+  },
+  "roam": {
+    "style": "fly",
+    "speed": 70,
+    "faces": "left"
   },
   "sounds": {
     "hello": "sounds/hello.wav",

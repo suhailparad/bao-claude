@@ -77,12 +77,16 @@ bao/characters/<id>/
   },
   "sounds": {"hello": "sounds/hello.wav", "done": "sounds/done.wav", "alert": "sounds/alert.wav",
              "waiting": "sounds/waiting.wav", "bye": "sounds/bye.wav"},
+  "roam": {"style": "walk", "speed": 36, "faces": "front"},
   "fallback_state": "idle"
 }
 ```
 - Any state missing from a manifest falls back to `fallback_state`. A tool variant (e.g. `typing`) falls back to `working`, then to `fallback_state`.
 - Sound values can also be `"system:Glass"`, which plays `/System/Library/Sounds/Glass.aiff`.
 - Validate manifests on load. A broken character logs an error and is skipped; it must never crash the app.
+- `roam` (optional; default walk/40/front) and a `roaming` state drive wandering while idle:
+  `walk` strolls along the home's height, `fly` flits above it; `faces: left|right` art is
+  mirrored toward travel. Invalid `roam` → ManifestError (character skipped).
 - User characters can also live in `~/.bao/characters/` and override the built-in ones by `id`.
 
 ## Project layout (target)
@@ -96,12 +100,13 @@ bao/
   ipc.py             # Unix-socket client/server + single-instance lock (stdlib only)
   app.py             # Qt app: PetController (GUI thread) wiring IPC → tracker → window/sound
   sessions.py        # SessionTracker + StateResolver (pure Python, unit-tested)
+  roam.py            # Roamer: wander around home while idle/waiting, hurry back for work (no Qt)
   character.py       # manifest loading/validation, frame loading
   window.py          # PetWindow: transparent frameless widget, animation, bubble, drag, context menu
   platform_mac.py    # pyobjc tweaks: hide Dock icon, float on all Spaces (no-ops elsewhere)
   sound.py           # SoundPlayer: .wav → QSoundEffect, system:/aiff/mp3 → afplay; mute, volume, per-cue off, DND/quiet hours, 1.5 s repeat guard
   config.py          # ~/.bao/config.json (character, scale, muted, volume, muted_cues, show_bubble, permission_reminder_seconds,
-                     #   do_not_disturb, quiet_hours, position)
+                     #   do_not_disturb, quiet_hours, roam, position)
   installer.py       # merge/remove hooks in ~/.claude/settings.json (with backup)
   characters/panda/  # default character
   characters/cat/    # ginger tabby (same poses/props as the panda)
@@ -151,6 +156,9 @@ pytest
 - Never test the installer against the real `~/.claude/settings.json`: pass `--settings` with a copy.
 - The app quits `quit_after_minutes` (config, default 15, 0 = never) after the last session ends;
   the next SessionStart relaunches it. A manual `run` with no sessions never auto-quits.
+- Roaming moves the window but `position` always stores *home* (where the user dropped it);
+  resizing or switching character snaps home first. Walk/fly frames come from the
+  generators' `roaming` pose (`step` lifts a foot, `flying` hides shadow/feet).
 - User state lives in `~/.bao/` only: config, socket, lock, log (`pet.log`). Nothing goes in the repo.
 - The app takes ~1.5 s to start (Qt import). The hook passes the event that triggered a launch via
   `run --initial-event`, so nothing is lost. Scripts that drive the app must wait for `pet.sock` to exist.
