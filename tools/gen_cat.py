@@ -2,7 +2,7 @@
 
     python tools/gen_cat.py                    # writes bao/characters/cat/
     python tools/gen_cat.py --sheet cat.png    # also writes a contact sheet preview PNG
-    python tools/gen_sounds.py --out bao/characters/cat   # then (re)make its sounds
+    python tools/gen_sounds.py --character cat   # then (re)make its meows
 
 A ginger tabby that reuses the panda's poses, props and animation timings
 (tools/gen_panda.py); only the body is drawn differently.

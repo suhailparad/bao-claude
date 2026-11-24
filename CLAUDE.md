@@ -101,7 +101,7 @@ bao/
 tools/
   gen_panda.py       # draws placeholder panda frames with QPainter (poses, props, generate())
   gen_cat.py         # draws the cat with the panda's poses/props
-  gen_sounds.py      # synthesizes .wav chimes
+  gen_sounds.py      # synthesizes .wav cues: panda chimes, cat meows/purr
 tests/
 ```
 
@@ -122,7 +122,7 @@ python -m bao doctor                      # check characters, config, hooks, run
 
 python tools/gen_panda.py                 # regenerate panda frames
 python tools/gen_cat.py                   # regenerate cat frames
-python tools/gen_sounds.py                # regenerate sounds (--out bao/characters/cat for the cat)
+python tools/gen_sounds.py                # regenerate panda chimes (--character cat: cat meows)
 pytest
 ```
 

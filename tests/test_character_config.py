@@ -105,3 +105,10 @@ def test_config_roundtrip_and_sanitize(tmp_path):
     assert (c.scale, c.volume, c.position) == (4.0, 0.7, None)
     path.write_text("{not json")
     assert Config.load(path) == Config()
+
+
+def test_builtin_characters_have_their_own_sounds():
+    panda = load_character(BUILTIN_DIR / "panda")
+    cat = load_character(BUILTIN_DIR / "cat")
+    for cue in ("hello", "waiting", "alert", "done", "bye"):
+        assert Path(panda.sound_for(cue)).read_bytes() != Path(cat.sound_for(cue)).read_bytes(), cue

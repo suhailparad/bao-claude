@@ -1,10 +1,13 @@
-"""Synthesize the panda's sound cues as small WAV files (stdlib only).
+"""Synthesize a character's sound cues as small WAV files (stdlib only).
 
-    python tools/gen_sounds.py                # writes bao/characters/panda/sounds/
-    python tools/gen_sounds.py --play done    # also plays one (macOS afplay)
+    python tools/gen_sounds.py                    # panda chimes -> bao/characters/panda/sounds/
+    python tools/gen_sounds.py --character cat    # cat meows    -> bao/characters/cat/sounds/
+    python tools/gen_sounds.py --play done        # also plays one (macOS afplay)
 
-Soft marimba/bell-like tones: a few decaying partials per note, short attack,
-no clipping. Updates the "sounds" section of the character's manifest.json.
+Panda: soft marimba/bell-like tones (a few decaying partials per note).
+Cat: synthesized meows, chirps and a purr (a harmonic voice whose pitch glides while
+formants move from "ee" to "oo"). Updates the "sounds" section of the character's
+manifest.json.
 """
 
 from __future__ import annotations
@@ -12,13 +15,14 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import random
 import struct
 import subprocess
 import wave
 from pathlib import Path
 
 RATE = 44100
-OUT = Path(__file__).resolve().parent.parent / "bao" / "characters" / "panda"
+CHARACTERS = Path(__file__).resolve().parent.parent / "bao" / "characters"
 
 # Note = (frequency Hz, start s, duration s, gain)
 Note = tuple[float, float, float, float]
@@ -83,6 +87,204 @@ def synth(notes: list[Note], decay: float, peak: float = 0.55) -> list[float]:
     return [x / m * peak for x in buf]
 
 
+# ---------------------------------------------------------------- cat voice
+
+# Vowel formants: (centre Hz, gain, bandwidth Hz). A meow is roughly "ee-ah-oo".
+VOWELS: dict[str, tuple[tuple[float, float, float], ...]] = {
+    "i": ((320, 1.0, 160), (2300, 0.55, 300), (3000, 0.3, 400)),
+    "e": ((450, 1.0, 170), (2000, 0.5, 300), (2700, 0.3, 400)),
+    "a": ((780, 1.0, 220), (1250, 0.7, 250), (2600, 0.25, 400)),
+    "o": ((520, 1.0, 180), (880, 0.6, 200), (2500, 0.15, 400)),
+    "u": ((360, 1.0, 160), (720, 0.4, 200), (2400, 0.1, 400)),
+}
+
+# A call: {"start", "dur", "pitch": [(frac, Hz)], "vowel": [(frac, v)], "gain",
+#          optional "trill": (rate Hz, depth)} ; a purr: {"purr": True, "start", "dur", "gain"}
+CAT_CUES: dict[str, dict] = {
+    # "mrrp?" chirp then a short rising "mew": hi!
+    "hello": {
+        "calls": [
+            {
+                "start": 0.0,
+                "dur": 0.24,
+                "gain": 0.8,
+                "trill": (30, 0.65),
+                "pitch": [(0, 430), (0.7, 720), (1, 820)],
+                "vowel": [(0, "u"), (0.5, "a"), (1, "e")],
+            },
+            {
+                "start": 0.27,
+                "dur": 0.34,
+                "gain": 1.0,
+                "pitch": [(0, 760), (0.35, 980), (1, 900)],
+                "vowel": [(0, "i"), (0.45, "a"), (1, "e")],
+            },
+        ],
+    },
+    # one soft, questioning meow: still there?
+    "waiting": {
+        "calls": [
+            {
+                "start": 0.0,
+                "dur": 0.62,
+                "gain": 1.0,
+                "pitch": [(0, 640), (0.35, 830), (0.8, 640), (1, 700)],
+                "vowel": [(0, "e"), (0.3, "a"), (0.75, "o"), (1, "u")],
+            },
+        ],
+        "peak": 0.45,
+    },
+    # two short, high, insistent meows: I need you!
+    "alert": {
+        "calls": [
+            {
+                "start": 0.0,
+                "dur": 0.26,
+                "gain": 1.0,
+                "pitch": [(0, 880), (0.3, 1150), (1, 920)],
+                "vowel": [(0, "i"), (0.4, "a"), (1, "o")],
+            },
+            {
+                "start": 0.31,
+                "dur": 0.3,
+                "gain": 1.0,
+                "pitch": [(0, 920), (0.3, 1220), (1, 960)],
+                "vowel": [(0, "i"), (0.4, "a"), (1, "o")],
+            },
+        ],
+        "peak": 0.6,
+    },
+    # happy rolling trill "brrrp" into a bright meow: done!
+    "done": {
+        "calls": [
+            {
+                "start": 0.0,
+                "dur": 0.34,
+                "gain": 0.75,
+                "trill": (27, 0.7),
+                "pitch": [(0, 480), (1, 780)],
+                "vowel": [(0, "u"), (1, "a")],
+            },
+            {
+                "start": 0.36,
+                "dur": 0.46,
+                "gain": 1.0,
+                "pitch": [(0, 820), (0.35, 1080), (1, 880)],
+                "vowel": [(0, "i"), (0.4, "a"), (1, "e")],
+            },
+        ],
+    },
+    # long, sleepy, falling meow and a purr: bye
+    "bye": {
+        "calls": [
+            {
+                "start": 0.0,
+                "dur": 0.8,
+                "gain": 1.0,
+                "pitch": [(0, 720), (0.25, 790), (1, 420)],
+                "vowel": [(0, "e"), (0.25, "a"), (0.7, "o"), (1, "u")],
+            },
+            {"purr": True, "start": 0.7, "dur": 0.95, "gain": 0.5},
+        ],
+        "peak": 0.5,
+    },
+}
+
+
+def _lerp_points(points: list, x: float):
+    """Piecewise-linear lookup in [(frac, value)], values being floats or float tuples."""
+    if x <= points[0][0]:
+        return points[0][1]
+    for (x0, v0), (x1, v1) in zip(points, points[1:], strict=False):
+        if x <= x1:
+            k = (x - x0) / (x1 - x0) if x1 > x0 else 1.0
+            if isinstance(v0, tuple):
+                return tuple(
+                    tuple(a + (b - a) * k for a, b in zip(f0, f1, strict=True))
+                    for f0, f1 in zip(v0, v1, strict=True)
+                )
+            return v0 + (v1 - v0) * k
+    return points[-1][1]
+
+
+def _envelope(i: int, n: int, attack: float = 0.025, release: float = 0.35) -> float:
+    a = min(1.0, i / (attack * RATE))
+    x = i / n
+    r = 1.0 if x < 1 - release else 0.5 * (1 + math.cos(math.pi * (x - 1 + release) / release))
+    return a * r
+
+
+def synth_meow(call: dict, rng: random.Random) -> list[float]:
+    n = int(call["dur"] * RATE)
+    out = [0.0] * n
+    pitch = call["pitch"]
+    vowel = [(x, VOWELS[v]) for x, v in call["vowel"]]
+    trill = call.get("trill")
+    vib_rate, vib_depth = 5.5, 0.012
+    phase = 0.0
+    block = 64
+    for b0 in range(0, n, block):
+        x = b0 / n
+        f0 = _lerp_points(pitch, x)
+        forms = _lerp_points(vowel, x)
+        ks = range(1, max(2, int(5200 / f0)))
+        amps = [
+            k**-0.7
+            * (0.12 + sum(g * math.exp(-(((k * f0 - fc) / bw) ** 2)) for fc, g, bw in forms))
+            for k in ks
+        ]
+        for i in range(b0, min(b0 + block, n)):
+            t = i / RATE
+            f = _lerp_points(pitch, i / n) * (1 + vib_depth * math.sin(2 * math.pi * vib_rate * t))
+            phase += 2 * math.pi * f / RATE
+            v = sum(a * math.sin(k * phase) for k, a in zip(ks, amps, strict=True))
+            env = _envelope(i, n)
+            if trill:
+                rate, depth = trill
+                env *= 1 - depth * (0.5 + 0.5 * math.sin(2 * math.pi * rate * t))
+            out[i] = call["gain"] * env * (v + 0.25 * rng.uniform(-1, 1))
+    return out
+
+
+def synth_purr(call: dict, rng: random.Random) -> list[float]:
+    """Low rumbling noise pulsed ~26 times a second, like a purr."""
+    n = int(call["dur"] * RATE)
+    out = [0.0] * n
+    lp = lp2 = 0.0
+    for i in range(n):
+        t = i / RATE
+        lp += 0.06 * (rng.uniform(-1, 1) - lp)  # two one-pole low-passes: soft rumble
+        lp2 += 0.06 * (lp - lp2)
+        pulse = (0.5 + 0.5 * math.sin(2 * math.pi * 26 * t)) ** 2
+        tone = 0.35 * math.sin(2 * math.pi * 130 * t)  # a little body small speakers can play
+        out[i] = call["gain"] * _envelope(i, n, 0.08, 0.5) * pulse * (6 * lp2 + tone)
+    return out
+
+
+def synth_cat(spec: dict, seed: int) -> list[float]:
+    rng = random.Random(seed)  # deterministic: regenerating gives identical files
+    total = max(c["start"] + c["dur"] for c in spec["calls"]) + 0.05
+    buf = [0.0] * int(total * RATE)
+    for call in spec["calls"]:
+        part = synth_purr(call, rng) if call.get("purr") else synth_meow(call, rng)
+        s0 = int(call["start"] * RATE)
+        for i, v in enumerate(part):
+            buf[s0 + i] += v
+    m = max(abs(x) for x in buf) or 1.0
+    peak = spec.get("peak", 0.55)
+    return [x / m * peak for x in buf]
+
+
+VOICES = {"panda": "chime", "cat": "cat"}
+
+
+def render(voice: str, name: str) -> list[float]:
+    if voice == "cat":
+        return synth_cat(CAT_CUES[name], seed=sum(map(ord, name)))
+    spec = CUES[name]
+    return synth(spec["notes"], spec["decay"])
+
+
 def write_wav(path: Path, samples: list[float]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with wave.open(str(path), "wb") as w:
@@ -94,14 +296,17 @@ def write_wav(path: Path, samples: list[float]) -> None:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--out", type=Path, default=OUT)
+    ap.add_argument("--character", choices=sorted(VOICES), default="panda")
+    ap.add_argument("--out", type=Path, help="character folder (default: the built-in one)")
     ap.add_argument("--play", metavar="CUE", help="play one cue after generating (macOS)")
     args = ap.parse_args()
+    args.out = args.out or CHARACTERS / args.character
+    voice = VOICES[args.character]
 
     sounds = {}
-    for name, spec in CUES.items():
+    for name in CUES:
         path = args.out / "sounds" / f"{name}.wav"
-        write_wav(path, synth(spec["notes"], spec["decay"]))
+        write_wav(path, render(voice, name))
         sounds[name] = f"sounds/{name}.wav"
         print(f"wrote {path.relative_to(args.out)} ({path.stat().st_size // 1024} KB)")
 
