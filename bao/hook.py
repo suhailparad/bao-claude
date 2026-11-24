@@ -19,10 +19,13 @@ import time
 from pathlib import Path
 from typing import Any
 
+from .focus import terminal_info
 from .ipc import PROTOCOL_VERSION, send_message
 
 SEND_TIMEOUT = 0.2
 LAUNCH_EVENTS = {"SessionStart"}
+# Events that record which terminal the session runs in (costs a few ms of `ps`).
+TERMINAL_EVENTS = {"SessionStart", "UserPromptSubmit"}
 
 
 def read_payload() -> dict[str, Any]:
@@ -37,9 +40,10 @@ def read_payload() -> dict[str, Any]:
 
 
 def build_message(payload: dict[str, Any], event_override: str | None = None) -> dict[str, Any]:
-    return {
+    event = event_override or payload.get("hook_event_name") or ""
+    msg: dict[str, Any] = {
         "v": PROTOCOL_VERSION,
-        "event": event_override or payload.get("hook_event_name") or "",
+        "event": event,
         "session_id": str(payload.get("session_id") or "default"),
         "cwd": payload.get("cwd") or os.getcwd(),
         "tool_name": payload.get("tool_name"),
@@ -49,6 +53,9 @@ def build_message(payload: dict[str, Any], event_override: str | None = None) ->
         "reason": payload.get("reason"),
         "ts": time.time(),
     }
+    if event in TERMINAL_EVENTS:
+        msg["terminal"] = terminal_info()
+    return msg
 
 
 def launch_pet(initial: dict[str, Any]) -> None:

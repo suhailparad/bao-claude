@@ -91,6 +91,7 @@ class Session:
     variant: str | None
     last_event_at: float
     state_since: float
+    terminal: dict[str, str] = field(default_factory=dict)  # {"app": bundle id, "tty": ...}
 
 
 @dataclass(frozen=True)
@@ -161,6 +162,9 @@ class SessionTracker:
         project = _project_name(msg.get("cwd"))
         if project:
             session.project = project
+        terminal = msg.get("terminal")
+        if isinstance(terminal, dict) and terminal:
+            session.terminal = {k: v for k, v in terminal.items() if isinstance(v, str)}
 
         cues: list[str] = []
         if event == "SessionStart":
@@ -246,6 +250,10 @@ class SessionTracker:
             session_count=len(self.sessions),
         )
 
+    def terminal_for(self, session_id: str | None) -> dict[str, str] | None:
+        session = self.sessions.get(session_id) if session_id else None
+        return dict(session.terminal) if session and session.terminal else None
+
     def snapshot(self) -> list[dict[str, Any]]:
         return [
             {
@@ -254,6 +262,7 @@ class SessionTracker:
                 "state": s.state.value,
                 "variant": s.variant,
                 "last_event_at": s.last_event_at,
+                "terminal": s.terminal,
             }
             for s in self.sessions.values()
         ]

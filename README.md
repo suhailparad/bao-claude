@@ -56,6 +56,9 @@ bubble names the project it's about.
 ## Using it
 
 - **Drag** the pet anywhere. It remembers where you put it.
+- **Click** the pet to jump to the terminal of the session it's showing. In Terminal and
+  iTerm2 it picks the exact tab (macOS asks once to let bao control the app); in other
+  apps (VS Code, Ghostty, WezTerm, Warp, …) it brings the app to the front.
 - **Right-click** it to pick a character, change its size, mute or set the volume,
   turn single sounds off, hide the speech bubble, or quit.
 
