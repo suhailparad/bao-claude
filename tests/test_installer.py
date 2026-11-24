@@ -106,3 +106,25 @@ def test_install_replaces_pre_rename_hooks(tmp_path):
     assert res.removed == 1
     cmds = [h["command"] for g in read(path)["hooks"]["Stop"] for h in g["hooks"]]
     assert sorted(cmds) == sorted([OTHER["command"], "/venv/bin/python -I -m bao.hook"])
+
+
+def test_hook_command_per_platform():
+    from bao.installer import hook_command
+
+    assert hook_command("/opt/my venv/bin/python", windows=False) == (
+        "'/opt/my venv/bin/python' -I -m bao.hook"
+    )
+    win = hook_command(r"C:\Users\Me\bao\.venv\Scripts\python.exe", windows=True)
+    assert win == '"C:/Users/Me/bao/.venv/Scripts/python.exe" -I -m bao.hook'
+    import shlex
+
+    assert shlex.split(win)[0] == "C:/Users/Me/bao/.venv/Scripts/python.exe"  # doctor parses it
+
+
+def test_configure_qt_platform():
+    from bao import desktop
+
+    env = {"WAYLAND_DISPLAY": "wayland-0", "DISPLAY": ":0"}
+    expected = "xcb;wayland" if desktop.IS_LINUX else None
+    assert desktop.configure_qt_platform(env) == expected
+    assert desktop.configure_qt_platform({"QT_QPA_PLATFORM": "offscreen"}) is None

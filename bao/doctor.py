@@ -7,7 +7,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from . import installer
+from . import desktop, focus, installer
 from .character import discover_characters
 from .config import Config
 from .ipc import send_message
@@ -21,9 +21,46 @@ def _line(mark: str, text: str) -> None:
     print(f"  {mark} {text}")
 
 
+def _desktop_checks() -> int:
+    """Per-OS notes: what works here and what needs an extra package."""
+    if desktop.IS_MAC:
+        _line(OK, "macOS: Dock-less floating window, AppleScript/`open` for click-to-focus")
+        return 0
+    if desktop.IS_WINDOWS:
+        _line(OK, "Windows: talks to the pet over localhost TCP (token in ~/.bao/pet.port)")
+        _line(OK, "click-to-focus uses the Win32 API (no extra tools needed)")
+        return 0
+    import os
+
+    session = os.environ.get("XDG_SESSION_TYPE") or (
+        "wayland"
+        if os.environ.get("WAYLAND_DISPLAY")
+        else "x11"
+        if os.environ.get("DISPLAY")
+        else "none"
+    )
+    if session == "wayland" and not os.environ.get("DISPLAY"):
+        _line(WARN, "Wayland without XWayland: the pet can't remember its spot or wander")
+    elif session == "wayland":
+        _line(OK, "Wayland: the pet runs through XWayland so it can place its window")
+    elif session == "none":
+        _line(WARN, "no graphical session found (DISPLAY / WAYLAND_DISPLAY unset)")
+    else:
+        _line(OK, "X11 session")
+    tool = focus.linux_focus_tool()
+    if tool:
+        _line(OK, f"click-to-focus uses {Path(tool).name}")
+    else:
+        _line(WARN, "click-to-focus needs xdotool or wmctrl: sudo apt install xdotool")
+    return 0
+
+
 def run_doctor(settings: Path | None = None) -> int:
     problems = 0
     print(f"bao doctor  (python {sys.version.split()[0]} at {sys.executable})")
+
+    print(f"\nDesktop  ({desktop.os_name()})")
+    problems += _desktop_checks()
 
     print("\nCharacters")
     chars = discover_characters()

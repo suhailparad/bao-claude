@@ -12,7 +12,7 @@ from typing import Any
 from PySide6.QtCore import QObject, QTimer, Signal
 from PySide6.QtWidgets import QApplication
 
-from . import focus, platform_mac
+from . import desktop, focus, platform_mac
 from .character import discover_characters
 from .config import Config
 from .ipc import EventServer, InstanceLock, send_message
@@ -177,7 +177,14 @@ def run(initial_event: dict[str, Any] | None = None, verbose: bool = False) -> i
                 pass
         return 0
 
+    chosen = desktop.configure_qt_platform()  # before QApplication: Wayland → XWayland
     app = QApplication(sys.argv[:1])
+    log.info(
+        "%s, Qt platform %s%s",
+        desktop.os_name(),
+        app.platformName(),
+        f" (set {chosen})" if chosen else "",
+    )
     app.setApplicationName("Claude Pet")
     app.setQuitOnLastWindowClosed(False)
     platform_mac.hide_dock_icon()

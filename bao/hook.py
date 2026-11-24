@@ -19,6 +19,7 @@ import time
 from pathlib import Path
 from typing import Any
 
+from .desktop import gui_python
 from .focus import terminal_info
 from .ipc import PROTOCOL_VERSION, send_message
 
@@ -60,14 +61,30 @@ def build_message(payload: dict[str, Any], event_override: str | None = None) ->
 
 def launch_pet(initial: dict[str, Any]) -> None:
     """Start the pet app detached, handing it the event that we couldn't deliver."""
+    kwargs: dict[str, Any] = {}
+    if sys.platform == "win32":
+        # No console window, and not killed when Claude Code's console closes.
+        kwargs["creationflags"] = getattr(subprocess, "DETACHED_PROCESS", 0x8) | getattr(
+            subprocess, "CREATE_NEW_PROCESS_GROUP", 0x200
+        )
+    else:
+        kwargs["start_new_session"] = True
     subprocess.Popen(  # noqa: S603 - fixed argv, no shell
-        [sys.executable, "-I", "-m", "bao", "run", "--initial-event", json.dumps(initial)],
+        [
+            gui_python(sys.executable),
+            "-I",
+            "-m",
+            "bao",
+            "run",
+            "--initial-event",
+            json.dumps(initial),
+        ],
         stdin=subprocess.DEVNULL,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
         cwd=str(Path.home()),
-        start_new_session=True,
         close_fds=True,
+        **kwargs,
     )
 
 

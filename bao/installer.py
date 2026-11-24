@@ -44,9 +44,17 @@ def default_settings_path() -> Path:
     return (Path(base) if base else Path.home() / ".claude") / "settings.json"
 
 
-def hook_command(python: str | None = None) -> str:
-    # Keep the venv path as-is (don't resolve symlinks: that would lose the venv).
-    return f"{shlex.quote(python or sys.executable)} -I -m {HOOK_MARKER}"
+def hook_command(python: str | None = None, windows: bool | None = None) -> str:
+    """The shell command Claude Code runs for every hook event.
+
+    Keeps the venv path as-is (don't resolve symlinks: that would lose the venv).
+    On Windows the path uses forward slashes in double quotes, which both Git Bash
+    and cmd.exe accept.
+    """
+    python = python or sys.executable
+    if sys.platform == "win32" if windows is None else windows:
+        return f'"{python.replace(chr(92), "/")}" -I -m {HOOK_MARKER}'
+    return f"{shlex.quote(python)} -I -m {HOOK_MARKER}"
 
 
 def _is_ours(hook: Any) -> bool:

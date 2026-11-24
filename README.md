@@ -12,20 +12,40 @@ You can add your own without touching any code.
 
 ## Requirements
 
-- macOS (built and tested on macOS 12; other platforms aren't supported yet)
+- macOS, Linux (Ubuntu 22.04+, X11 or Wayland with XWayland) or Windows 10/11
 - Python 3.10 or newer
 - Claude Code
 
 ## Install
 
+macOS and Linux:
+
 ```bash
 git clone https://github.com/suhailparad/bao.git
 cd bao
-python -m venv .venv && source .venv/bin/activate
+python3 -m venv .venv && source .venv/bin/activate
 pip install -e .
 
 python -m bao install-hooks   # registers bao's hooks in ~/.claude/settings.json
 python -m bao doctor          # checks that everything is set up
+```
+
+On **Ubuntu**, install the Qt runtime libraries and (for click-to-focus) `xdotool` first:
+
+```bash
+sudo apt install python3-venv libxcb-cursor0 libegl1 libxkbcommon-x11-0 xdotool
+```
+
+Windows (PowerShell):
+
+```powershell
+git clone https://github.com/suhailparad/bao.git
+cd bao
+py -m venv .venv; .venv\Scripts\Activate.ps1
+pip install -e .
+
+python -m bao install-hooks
+python -m bao doctor
 ```
 
 `install-hooks` backs up your settings to `~/.claude/settings.json.bak` first, only
@@ -89,6 +109,18 @@ python -m bao uninstall-hooks  # remove bao's hooks from Claude Code
 **Do Not Disturb** (right-click menu or `bao dnd on`) silences every sound but keeps the
 animations; a small moon shows while it's on. Set `"quiet_hours": ["22:00", "08:00"]` in the
 config to turn it on automatically every day (the range may cross midnight).
+
+### Platform notes
+
+| | macOS | Linux | Windows |
+|---|---|---|---|
+| Click to focus the terminal | exact Terminal/iTerm2 tab, other apps | the terminal window, via `xdotool` or `wmctrl` | the terminal window (Windows Terminal, VS Code, console) |
+| `system:` sounds | `system:Glass` (/System/Library/Sounds) | `system:complete` (freedesktop theme) | `system:tada` (C:\Windows\Media) |
+| Hook ↔ pet | Unix socket `~/.bao/pet.sock` | Unix socket | localhost TCP, port + token in `~/.bao/pet.port` |
+
+On a Wayland desktop the pet runs through XWayland, because Wayland doesn't let apps
+place their own windows (it couldn't remember its spot or wander). A see-through
+window needs a compositor, which every mainstream Linux desktop has.
 
 Settings live in `~/.bao/config.json` (character, scale, muted, volume, muted_cues,
 show_bubble, roam, permission_reminder_seconds, do_not_disturb, quiet_hours, quit_after_minutes,

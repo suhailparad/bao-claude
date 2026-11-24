@@ -1,7 +1,9 @@
 """Plays a character's sound cues, honouring mute, volume and per-cue switches.
 
-* ``.wav`` files → ``QSoundEffect`` (preloaded, low latency).
-* ``system:<Name>`` and other formats (aiff/mp3/m4a) → macOS ``afplay``.
+* ``.wav`` files → ``QSoundEffect`` (preloaded, low latency), on every OS.
+* Other formats (aiff/mp3/m4a/oga) → ``afplay`` on macOS, Qt's media player elsewhere.
+* ``system:<Name>`` → the desktop's own sound theme (see ``desktop.system_sound_path``):
+  ``system:Glass`` on macOS, ``system:complete`` on Linux, ``system:tada`` on Windows.
 """
 
 from __future__ import annotations
@@ -12,15 +14,14 @@ import time
 from pathlib import Path
 
 from PySide6.QtCore import QObject, QUrl
-from PySide6.QtMultimedia import QSoundEffect
+from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer, QSoundEffect
 
 from .character import Character
 from .config import Config
-from .platform_mac import IS_MAC
+from .desktop import IS_MAC, system_sound_path
 
 log = logging.getLogger(__name__)
 
-SYSTEM_SOUNDS_DIR = Path("/System/Library/Sounds")
 REPEAT_GAP = 1.5  # seconds: the same cue won't replay faster than this
 CUE_LABELS = {
     "hello": "Session started",
@@ -33,9 +34,8 @@ CUE_LABELS = {
 
 def resolve_sound(ref: str) -> Path | None:
     if ref.startswith("system:"):
-        p = SYSTEM_SOUNDS_DIR / f"{ref.split(':', 1)[1]}.aiff"
-    else:
-        p = Path(ref)
+        return system_sound_path(ref.split(":", 1)[1])
+    p = Path(ref)
     return p if p.is_file() else None
 
 
@@ -96,18 +96,38 @@ class SoundPlayer(QObject):
             effect.play()
             log.debug("play %s (%s)", cue, path.name)
             return True
-        if IS_MAC:
-            try:
-                subprocess.Popen(  # noqa: S603 - fixed argv
-                    ["/usr/bin/afplay", "-v", f"{self.config.volume:.2f}", str(path)],
-                    stdin=subprocess.DEVNULL,
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                )
-                log.debug("afplay %s (%s)", cue, path.name)
-                return True
-            except OSError as exc:
-                log.warning("afplay failed: %s", exc)
-        else:
-            log.info("cannot play %s on this platform", path.suffix)
-        return False
+        if not IS_MAC:
+            return self._play_media(cue, path)
+        try:
+            subprocess.Popen(  # noqa: S603 - fixed argv
+                ["/usr/bin/afplay", "-v", f"{self.config.volume:.2f}", str(path)],
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            log.debug("afplay %s (%s)", cue, path.name)
+            return True
+        except OSError as exc:
+            log.warning("afplay failed: %s", exc)
+            return False
+
+    def _play_media(self, cue: str, path: Path) -> bool:
+        """Non-wav files off macOS: Qt's media player (FFmpeg backend in PySide6)."""
+        player = QMediaPlayer(self)
+        output = QAudioOutput(player)  # owned by the player: deleted with it
+        output.setVolume(self.config.volume)
+        player.setAudioOutput(output)
+
+        def finished(status: QMediaPlayer.MediaStatus) -> None:
+            if status in (
+                QMediaPlayer.MediaStatus.EndOfMedia,
+                QMediaPlayer.MediaStatus.InvalidMedia,
+            ):
+                player.deleteLater()
+
+        player.mediaStatusChanged.connect(finished)
+        player.errorOccurred.connect(lambda *_: player.deleteLater())
+        player.setSource(QUrl.fromLocalFile(str(path)))
+        player.play()
+        log.debug("media %s (%s)", cue, path.name)
+        return True

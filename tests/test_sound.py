@@ -76,7 +76,12 @@ def test_volume_applied(player):
 def test_system_sound_uses_afplay(player, monkeypatch, tmp_path):
     fake = tmp_path / "Glass.aiff"
     fake.write_bytes(b"x")
-    monkeypatch.setattr(sound, "SYSTEM_SOUNDS_DIR", tmp_path)
+    import bao.desktop as desktop
+
+    monkeypatch.setattr(desktop, "MAC_SOUNDS", tmp_path)
+    monkeypatch.setattr(
+        sound, "system_sound_path", lambda n: desktop.system_sound_path(n, "darwin")
+    )
     monkeypatch.setattr(sound, "IS_MAC", True)
     calls = []
     monkeypatch.setattr(sound.subprocess, "Popen", lambda argv, **kw: calls.append(argv))
@@ -94,3 +99,31 @@ def test_do_not_disturb_silences_but_test_sound_still_plays(player):
     player.config.do_not_disturb = False
     player._last_played.clear()
     assert player.play("done")
+
+
+def test_system_sounds_on_linux_and_windows(monkeypatch, tmp_path):
+    import bao.desktop as desktop
+
+    stereo = tmp_path / "stereo"
+    stereo.mkdir()
+    (stereo / "complete.oga").write_bytes(b"x")
+    monkeypatch.setattr(desktop, "LINUX_SOUND_DIRS", (stereo,))
+    assert desktop.system_sound_path("Complete", "linux") == stereo / "complete.oga"
+    assert desktop.system_sound_path("missing", "linux") is None
+    media = tmp_path / "Media"
+    media.mkdir()
+    (media / "tada.wav").write_bytes(b"x")
+    monkeypatch.setenv("WINDIR", str(tmp_path))
+    assert desktop.system_sound_path("tada", "win32") == media / "tada.wav"
+    assert desktop.system_sound_path("../tada", "win32") is None  # no path tricks
+
+
+def test_non_wav_off_macos_uses_qt_media_player(player, monkeypatch, tmp_path):
+    fake = tmp_path / "ding.mp3"
+    fake.write_bytes(b"not really audio")
+    monkeypatch.setattr(sound, "IS_MAC", False)
+    popen = []
+    monkeypatch.setattr(sound.subprocess, "Popen", lambda *a, **k: popen.append(a))
+    player._files["alert"] = fake
+    player._effects.pop("alert")
+    assert player.play("alert") and popen == []  # no afplay
