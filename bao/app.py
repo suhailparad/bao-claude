@@ -32,10 +32,14 @@ class PetController(QObject):
     display_changed = Signal(object)  # Display
     cue = Signal(str)  # sound cue name
     quit_requested = Signal()
+    dnd_requested = Signal(bool)  # `bao dnd on|off`
     _incoming = Signal(object)  # dict, emitted from the IPC thread → queued to GUI thread
 
-    def __init__(self, timings: Timings | None = None, quit_after: float = 0.0) -> None:
+    def __init__(
+        self, timings: Timings | None = None, quit_after: float = 0.0, config: Config | None = None
+    ) -> None:
         super().__init__()
+        self.config = config
         self.tracker = SessionTracker(timings or Timings())
         self.quit_after = quit_after  # seconds with no sessions (after having had one); 0 = never
         self._had_sessions = False
@@ -52,9 +56,24 @@ class PetController(QObject):
     def handle_from_thread(self, msg: dict[str, Any]) -> dict[str, Any] | None:
         cmd = msg.get("cmd")
         if cmd == "status":
-            return self._status  # immutable snapshot rebuilt on the GUI thread
+            status = self._status  # immutable snapshot rebuilt on the GUI thread
+            if self.config is not None:  # plain reads of simple values: safe across threads
+                status = {
+                    **status,
+                    "do_not_disturb": {
+                        "active": self.config.sounds_silenced(),
+                        "manual": self.config.do_not_disturb,
+                        "quiet_hours": self.config.quiet_hours,
+                    },
+                }
+            return status
         if cmd == "play":
             self.cue.emit(str(msg.get("cue") or "done"))  # queued to the GUI thread
+            return {"ok": True}
+        if cmd == "dnd":
+            on = msg.get("on")
+            if isinstance(on, bool):
+                self.dnd_requested.emit(on)  # queued to the GUI thread
             return {"ok": True}
         if cmd == "quit":
             self.quit_requested.emit()
@@ -151,7 +170,7 @@ def run(initial_event: dict[str, Any] | None = None, verbose: bool = False) -> i
     config = Config.load()
     window = PetWindow(config, characters)
 
-    controller = PetController(quit_after=config.quit_after_minutes * 60)
+    controller = PetController(quit_after=config.quit_after_minutes * 60, config=config)
     controller.display_changed.connect(
         lambda d: log.info(
             "state → %s%s [%s] %r (%d session(s))",
@@ -171,6 +190,7 @@ def run(initial_event: dict[str, Any] | None = None, verbose: bool = False) -> i
     window.sound_settings_changed.connect(player.apply_settings)
     window.test_sound_requested.connect(lambda: player.play("done", force=True))
     window.quit_requested.connect(app.quit)
+    controller.dnd_requested.connect(window.set_do_not_disturb)
     window.set_display(controller.display)
     window.show()
 

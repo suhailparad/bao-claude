@@ -92,3 +92,26 @@ def test_auto_quit_after_last_session(qapp):
     c._check_auto_quit(1062)
     c._check_auto_quit(1100)
     assert fired == [1]  # once
+
+
+def test_do_not_disturb_menu_moon_and_ipc(window, pet_home):
+    from bao.app import PetController
+
+    titles = [a.text() for a in window.build_menu().actions()]
+    assert "Do Not Disturb" in titles and not any(t.startswith("Quiet hours") for t in titles)
+    window.set_do_not_disturb(True)
+    assert Config.load().do_not_disturb
+    window.set_display(disp(State.WORKING))
+    assert not window.grab().toImage().isNull()  # paints the moon without errors
+    window.config.quiet_hours = ["22:00", "08:00"]
+    assert any(
+        a.text().startswith("Quiet hours 22:00–08:00") for a in window.build_menu().actions()
+    )
+
+    c = PetController(config=window.config)
+    c.dnd_requested.connect(window.set_do_not_disturb)
+    assert c.handle_from_thread({"cmd": "dnd", "on": False}) == {"ok": True}
+    assert window.config.do_not_disturb is False
+    status = c.handle_from_thread({"cmd": "status"})
+    assert status["do_not_disturb"]["manual"] is False
+    assert status["do_not_disturb"]["quiet_hours"] == ["22:00", "08:00"]

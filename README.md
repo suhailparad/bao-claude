@@ -67,12 +67,17 @@ python -m bao status           # what the pet is showing, and every session it k
 python -m bao send thinking    # try a state (start, reading, typing, running, permission,
                                #   waiting, done, compact, end, …)
 python -m bao sound done       # play a cue through the running pet
+python -m bao dnd on           # Do Not Disturb: no sounds (off | status)
 python -m bao quit
 python -m bao uninstall-hooks  # remove bao's hooks from Claude Code
 ```
 
+**Do Not Disturb** (right-click menu or `bao dnd on`) silences every sound but keeps the
+animations; a small moon shows while it's on. Set `"quiet_hours": ["22:00", "08:00"]` in the
+config to turn it on automatically every day (the range may cross midnight).
+
 Settings live in `~/.bao/config.json` (character, scale, muted, volume, muted_cues,
-show_bubble, quit_after_minutes, position) and the log in `~/.bao/pet.log`.
+show_bubble, do_not_disturb, quiet_hours, quit_after_minutes, position) and the log in `~/.bao/pet.log`.
 
 ## Make your own character
 

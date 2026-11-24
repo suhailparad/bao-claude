@@ -5,7 +5,10 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 from dataclasses import asdict, dataclass, field, fields
+from datetime import datetime
+from datetime import time as dtime
 from pathlib import Path
 from typing import Any
 
@@ -15,6 +18,24 @@ log = logging.getLogger(__name__)
 
 
 DEFAULT_CHARACTER = "panda"
+_HHMM = re.compile(r"^([01]?\d|2[0-3]):([0-5]\d)$")
+
+
+def parse_hhmm(value: Any) -> dtime | None:
+    m = _HHMM.match(value) if isinstance(value, str) else None
+    return dtime(int(m.group(1)), int(m.group(2))) if m else None
+
+
+def in_quiet_hours(hours: list[str] | None, now: dtime) -> bool:
+    """True if ``now`` is inside [start, end). Wraps past midnight (e.g. 22:00 → 08:00)."""
+    if not hours:
+        return False
+    start, end = parse_hhmm(hours[0]), parse_hhmm(hours[1])
+    if start is None or end is None or start == end:
+        return False
+    if start < end:
+        return start <= now < end
+    return now >= start or now < end
 
 
 @dataclass
@@ -25,6 +46,8 @@ class Config:
     volume: float = 0.7
     show_bubble: bool = True
     muted_cues: list[str] = field(default_factory=list)  # e.g. ["hello", "bye"]
+    do_not_disturb: bool = False  # no sounds; the pet still animates
+    quiet_hours: list[str] | None = None  # ["22:00", "08:00"]: daily Do Not Disturb window
     quit_after_minutes: float = 15.0  # quit this long after the last session ends (0 = never)
     position: list[int] | None = None  # [x, y] of the window's top-left corner
 
@@ -45,6 +68,13 @@ class Config:
         cfg._sanitize()
         return cfg
 
+    def in_quiet_hours(self, now: datetime | None = None) -> bool:
+        return in_quiet_hours(self.quiet_hours, (now or datetime.now()).time())
+
+    def sounds_silenced(self, now: datetime | None = None) -> bool:
+        """Do Not Disturb is on, by hand or by the clock."""
+        return self.do_not_disturb or self.in_quiet_hours(now)
+
     def save(self, path: Path | None = None) -> None:
         path = path or config_path()
         try:
@@ -64,6 +94,13 @@ class Config:
         )
         self.muted = bool(self.muted)
         self.show_bubble = bool(self.show_bubble)
+        self.do_not_disturb = bool(self.do_not_disturb)
+        qh = self.quiet_hours
+        if qh is not None and not (
+            isinstance(qh, list) and len(qh) == 2 and all(parse_hhmm(v) for v in qh)
+        ):
+            log.warning('ignoring quiet_hours %r (expected ["22:00", "08:00"])', qh)
+            self.quiet_hours = None
         if not isinstance(self.character, str) or not self.character:
             self.character = defaults.character
         if not isinstance(self.muted_cues, list):

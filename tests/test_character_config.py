@@ -112,3 +112,37 @@ def test_builtin_characters_have_their_own_sounds():
     cat = load_character(BUILTIN_DIR / "cat")
     for cue in ("hello", "waiting", "alert", "done", "bye"):
         assert Path(panda.sound_for(cue)).read_bytes() != Path(cat.sound_for(cue)).read_bytes(), cue
+
+
+def test_quiet_hours():
+    from datetime import datetime
+    from datetime import time as t
+
+    from bao.config import Config, in_quiet_hours
+
+    night = ["22:00", "08:00"]
+    assert in_quiet_hours(night, t(23, 30)) and in_quiet_hours(night, t(7, 59))
+    assert not in_quiet_hours(night, t(8, 0)) and not in_quiet_hours(night, t(12, 0))
+    lunch = ["12:00", "13:00"]
+    assert in_quiet_hours(lunch, t(12, 30)) and not in_quiet_hours(lunch, t(13, 0))
+    assert not in_quiet_hours(None, t(0, 0)) and not in_quiet_hours(["9:00", "9:00"], t(9, 0))
+
+    cfg = Config(quiet_hours=night)
+    assert cfg.sounds_silenced(datetime(2026, 1, 1, 23, 0))
+    assert not cfg.sounds_silenced(datetime(2026, 1, 1, 12, 0))
+    cfg.do_not_disturb = True
+    assert cfg.sounds_silenced(datetime(2026, 1, 1, 12, 0))
+
+
+def test_quiet_hours_sanitized(pet_home):
+    import json
+
+    from bao.config import Config
+    from bao.paths import config_path
+
+    for bad in (["25:00", "08:00"], ["22:00"], "22-08", [22, 8]):
+        config_path().write_text(json.dumps({"quiet_hours": bad, "do_not_disturb": 1}))
+        cfg = Config.load()
+        assert cfg.quiet_hours is None and cfg.do_not_disturb is True
+    config_path().write_text(json.dumps({"quiet_hours": ["22:00", "7:30"]}))
+    assert Config.load().quiet_hours == ["22:00", "7:30"]
