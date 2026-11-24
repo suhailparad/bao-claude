@@ -173,3 +173,88 @@ def test_do_not_disturb_menu_moon_and_ipc(window, pet_home):
     status = c.handle_from_thread({"cmd": "status"})
     assert status["do_not_disturb"]["manual"] is False
     assert status["do_not_disturb"]["quiet_hours"] == ["22:00", "08:00"]
+
+
+def _roam_window(qapp, pet_home, character, monkeypatch, clock):
+    import bao.window as wmod
+    from bao.roam import RoamSpec
+
+    monkeypatch.setattr(wmod.time, "monotonic", lambda: clock[0])
+    w = PetWindow(Config(character=character), discover_characters())
+    w.move(300, 300)
+    w._roam_bounds = lambda: (0.0, 0.0, 1000.0, 700.0)
+    w._roamer.rng.seed(7)
+    assert isinstance(w._roamer.spec, RoamSpec)
+    return w
+
+
+def _tick(w, clock, seconds, dt=0.05):
+    end = clock[0] + seconds
+    while clock[0] < end:
+        clock[0] += dt
+        w._roam_tick()
+
+
+def test_roams_when_idle_and_comes_home_for_work(qapp, pet_home, monkeypatch):
+    clock = [1000.0]
+    w = _roam_window(qapp, pet_home, "penguin", monkeypatch, clock)
+    w.set_display(disp(State.WAITING))
+    assert w._roam_timer.isActive()
+    _tick(w, clock, 7)
+    assert (w.x(), w.y()) == (300, 300)  # waits a bit first
+    _tick(w, clock, 20)
+    assert w.y() == 300 and w.x() != 300  # strolled sideways
+    if w._roamer.moving:
+        assert w._anim.name == "roaming"
+    w.set_display(disp(State.WORKING, "typing"))
+    _tick(w, clock, 4)
+    assert (w.x(), w.y()) == (300, 300) and not w._roam_timer.isActive()
+    assert w._anim.name == "typing" and not w._mirror
+    w.close()
+
+
+def test_bird_flies_and_mirrors_toward_travel(qapp, pet_home, monkeypatch):
+    clock = [1000.0]
+    w = _roam_window(qapp, pet_home, "hummingbird", monkeypatch, clock)
+    w.set_display(disp(State.IDLE))
+    _tick(w, clock, 9)
+    seen = set()
+    for _ in range(600):
+        _tick(w, clock, 0.05)
+        if w._roamer.facing:
+            seen.add((w._roamer.facing, w._mirror))
+        if w._roamer.airborne:
+            assert w._anim.name == "roaming"
+    assert (1, True) in seen or (-1, False) in seen  # faces left: flipped only going right
+    assert all(mirror == (facing > 0) for facing, mirror in seen)
+    w.close()
+
+
+def test_drag_sets_new_home_and_position_saves_home(qapp, pet_home, monkeypatch):
+    clock = [1000.0]
+    w = _roam_window(qapp, pet_home, "cat", monkeypatch, clock)
+    w.set_display(disp(State.WAITING))
+    _tick(w, clock, 20)
+    w._save_position()
+    assert Config.load().position == [300, 300]  # home, not wherever it wandered to
+    w.move(500, 200)  # the user drops it here
+    w._drag_offset, w._dragged = None, True
+    w._roamer.stop()
+    w._roam_stopped()
+    w._save_position()
+    w._update_roaming()
+    assert Config.load().position == [500, 200] and w._roamer.home == (500, 200)
+    w.close()
+
+
+def test_roam_menu_toggle(qapp, pet_home, monkeypatch):
+    clock = [1000.0]
+    w = _roam_window(qapp, pet_home, "panda", monkeypatch, clock)
+    assert "Wander around when idle" in [a.text() for a in w.build_menu().actions()]
+    w.set_display(disp(State.IDLE))
+    _tick(w, clock, 20)
+    w._set_roam(False)
+    _tick(w, clock, 4)
+    assert (w.x(), w.y()) == (300, 300) and not w._roam_timer.isActive()
+    assert Config.load().roam is False
+    w.close()

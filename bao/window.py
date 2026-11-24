@@ -27,6 +27,7 @@ from PySide6.QtWidgets import QMenu, QWidget
 from . import platform_mac
 from .character import Animation, Character
 from .config import DEFAULT_CHARACTER, Config
+from .roam import Roamer
 from .sessions import Display, State, format_duration
 from .sound import CUE_LABELS
 
@@ -37,6 +38,9 @@ MIN_W = 210
 BUBBLE_SECONDS = 4.0
 STICKY_BUBBLE = {State.WAITING, State.NEEDS_PERMISSION}
 HIDDEN_BUBBLE = {State.SLEEPING}
+ROAM_STATES = {State.IDLE, State.WAITING}  # nothing for Bao to do: wander around
+ROAM_DELAY = 8.0  # seconds of staying put before the first stroll
+ROAM_TICK_MS = 33
 SIZES = [("Small", 0.7), ("Medium", 1.0), ("Large", 1.4)]
 SHAKE_SECONDS = 0.9
 SHAKE_PX = 7.0  # at scale 1
@@ -93,6 +97,11 @@ class PetWindow(QWidget):
         self._shake_timer = QTimer(self)
         self._shake_timer.setInterval(16)
         self._shake_timer.timeout.connect(self._shake_step)
+        self._roamer = Roamer(self.character.roam, config.scale)
+        self._mirror = False  # sprite flipped to face the way it travels
+        self._roam_timer = QTimer(self)
+        self._roam_timer.setInterval(ROAM_TICK_MS)
+        self._roam_timer.timeout.connect(self._roam_tick)
 
         self._apply_size()
         self._restore_position()
@@ -109,13 +118,14 @@ class PetWindow(QWidget):
     def set_display(self, display: Display) -> None:
         previous = self.display
         self.display = display
-        self._play(self.character.animation_for(display.state.value, display.variant))
+        self._play(self._animation_now())
         if previous is None or (previous.state, previous.text, previous.project) != (
             display.state,
             display.text,
             display.project,
         ):
             self._show_bubble_for(display)
+        self._update_roaming()
         self.update()
 
     def nudge(self) -> None:
@@ -140,6 +150,64 @@ class PetWindow(QWidget):
             self._shake_timer.stop()
         self.update()
 
+    # -- roaming --------------------------------------------------------------------------
+
+    def _animation_now(self) -> Animation:
+        if self._roamer.moving or self._roamer.airborne:
+            return self.character.animation_for("roaming")
+        d = self.display
+        if d is None:
+            return self.character.animation_for(self.character.fallback_state)
+        return self.character.animation_for(d.state.value, d.variant)
+
+    def _wants_roam(self) -> bool:
+        d = self.display
+        return bool(self.config.roam and d is not None and d.state in ROAM_STATES)
+
+    def _update_roaming(self) -> None:
+        now = time.monotonic()
+        if self._wants_roam():
+            if not self._roamer.active or self._roamer.phase == "returning":
+                self._roamer.start((self.x(), self.y()), self._roam_bounds(), now, ROAM_DELAY)
+                self._roam_timer.start()
+        elif self._roamer.active:
+            self._roamer.go_home(now)
+            if not self._roamer.active:
+                self._roam_stopped()
+
+    def _roam_bounds(self) -> tuple[float, float, float, float]:
+        screen = self.screen() or QGuiApplication.primaryScreen()
+        g = screen.availableGeometry()
+        return (g.left(), g.top(), g.right() - self.width() + 1, g.bottom() - self.height() + 1)
+
+    def _roam_tick(self) -> None:
+        if self._drag_offset is not None:
+            return  # held by the user
+        x, y = self._roamer.step(time.monotonic())
+        self.move(round(x), round(y))
+        facing, faces = self._roamer.facing, self._roamer.spec.faces
+        if facing:
+            self._mirror = (faces == "left" and facing > 0) or (faces == "right" and facing < 0)
+        if not self._roamer.active:
+            self._roam_stopped()
+            return
+        self._play(self._animation_now())
+        self.update()
+
+    def _roam_stopped(self) -> None:
+        self._roam_timer.stop()
+        self._mirror = False
+        self._play(self._animation_now())
+        self.update()
+
+    def _snap_home(self) -> None:
+        """Jump straight back home (before resizing or switching character)."""
+        home = self._roamer.home if self._roamer.active else None
+        self._roamer.stop()
+        if home is not None:
+            self.move(round(home[0]), round(home[1]))
+        self._roam_stopped()
+
     # -- character / animation -------------------------------------------------------------
 
     def _pick_character(self, cid: str) -> Character:
@@ -152,7 +220,9 @@ class PetWindow(QWidget):
     def set_character(self, cid: str) -> None:
         if cid not in self.characters or cid == self.character.id:
             return
+        self._snap_home()
         self.character = self.characters[cid]
+        self._roamer = Roamer(self.character.roam, self.config.scale)
         self._cache.clear()
         self._anim = None
         self.config.character = cid
@@ -226,7 +296,9 @@ class PetWindow(QWidget):
             self.move(g.right() - self.width() - 24, g.bottom() - self.height() - 24)
 
     def _save_position(self) -> None:
-        self.config.position = [self.x(), self.y()]
+        home = self._roamer.home if self._roamer.active else None
+        x, y = (round(home[0]), round(home[1])) if home else (self.x(), self.y())
+        self.config.position = [x, y]
         self.config.save()
 
     # -- bubble ---------------------------------------------------------------------------
@@ -269,11 +341,18 @@ class PetWindow(QWidget):
             (self.width() - sw) / 2 + self._shake_offset(), self.height() - sh, sw, sh
         )
         if self._frames:
+            p.save()
+            if self._mirror:
+                cx = sprite_rect.center().x()
+                p.translate(cx, 0)
+                p.scale(-1, 1)
+                p.translate(-cx, 0)
             p.drawPixmap(
                 sprite_rect,
                 self._frames[self._frame % len(self._frames)],
                 QRectF(self._frames[0].rect()),
             )
+            p.restore()
         if self.config.sounds_silenced():
             self._paint_moon(p, sprite_rect)
         if (self._bubble_visible or self._hover) and self.display is not None:
@@ -354,8 +433,11 @@ class PetWindow(QWidget):
     def mouseReleaseEvent(self, e: QMouseEvent) -> None:  # noqa: N802
         if e.button() == Qt.LeftButton and self._drag_offset is not None:
             self._drag_offset = None
-            if self._dragged:
+            if self._dragged:  # dropped somewhere new: that's home now
+                self._roamer.stop()
+                self._roam_stopped()
                 self._save_position()
+                self._update_roaming()
             elif self.display is not None:  # click: show the bubble, focus the terminal
                 self._bubble_visible = True
                 self._bubble_timer.start(int(BUBBLE_SECONDS * 1000))
@@ -433,6 +515,11 @@ class PetWindow(QWidget):
             info = menu.addAction(f"Quiet hours {start}–{end}{now}")
             info.setEnabled(False)
 
+        roam = QAction("Wander around when idle", menu, checkable=True)
+        roam.setChecked(self.config.roam)
+        roam.toggled.connect(self._set_roam)
+        menu.addAction(roam)
+
         bubble = QAction("Show speech bubble", menu, checkable=True)
         bubble.setChecked(self.config.show_bubble)
         bubble.toggled.connect(self._set_show_bubble)
@@ -443,10 +530,18 @@ class PetWindow(QWidget):
         return menu
 
     def _set_scale(self, scale: float) -> None:
+        self._snap_home()
         self.config.scale = scale
+        self._roamer.scale = scale
         self.config.save()
         self._apply_size()
+        self._update_roaming()
         self.update()
+
+    def _set_roam(self, on: bool) -> None:
+        self.config.roam = on
+        self.config.save()
+        self._update_roaming()
 
     def _set_muted(self, muted: bool) -> None:
         self.config.muted = muted

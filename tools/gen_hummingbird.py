@@ -183,19 +183,23 @@ def draw_hummingbird(p: QPainter, pose: Pose, t: float) -> None:
     p.setRenderHint(QPainter.TextAntialiasing)
     sleepy = pose.mouth == "sleepy"
 
-    shrink = max(0.55, 1 + pose.bob / 40)
-    p.setPen(Qt.NoPen)
-    p.setBrush(gp.SHADOW)
-    ellipse(p, 80, 150, 28 * shrink, 4.5 * shrink)
+    if not pose.flying:  # in the air the window itself moves: no ground shadow
+        shrink = max(0.55, 1 + pose.bob / 40)
+        p.setPen(Qt.NoPen)
+        p.setBrush(gp.SHADOW)
+        ellipse(p, 80, 150, 28 * shrink, 4.5 * shrink)
 
     p.save()
     p.translate(0, pose.bob)
 
     draw_tail(p, t, sleepy)
 
-    # tiny perching feet
+    # tiny perching feet (tucked up under the body in flight)
     p.setPen(edge_pen(LEG, 2.0))
     for fx in (70, 90):
+        if pose.flying:
+            p.drawLine(QPointF(fx, 136), QPointF(fx + 3, 141))
+            continue
         p.drawLine(QPointF(fx, 138), QPointF(fx, 146))
         p.drawLine(QPointF(fx, 146), QPointF(fx - 4, 148))
         p.drawLine(QPointF(fx, 146), QPointF(fx + 4, 148))
@@ -229,7 +233,7 @@ def draw_hummingbird(p: QPainter, pose: Pose, t: float) -> None:
         prop(p, t)
         p.restore()
 
-    buzz = 0.0 if sleepy or pose.eyes == "closed" else 9.0
+    buzz = 0.0 if sleepy or pose.eyes == "closed" else (16.0 if pose.flying else 9.0)
     draw_wing(p, 54, 102, pose.arm_l, 1, buzz)
     draw_wing(p, 106, 102, -pose.arm_r, -1, buzz)
 
@@ -281,6 +285,24 @@ def draw_hummingbird(p: QPainter, pose: Pose, t: float) -> None:
         p.restore()
 
 
+def flying(t: float, i: int) -> Pose:
+    """Hovering flight while roaming: wings high and beating fast, leaning toward the bill."""
+    beat = math.sin(t * gp.TAU * 4)
+    return Pose(
+        flying=True,
+        bob=math.sin(t * gp.TAU) * 2.5 - 4,
+        head_tilt=-7,
+        arm_l=118 + 28 * beat,
+        arm_r=118 + 28 * beat,
+        eyes="open",
+        look=(-2.0, 0.0),
+        mouth="smile",
+    )
+
+
+FLY = {"style": "fly", "speed": 70, "faces": "left"}  # bill points left: mirror when going right
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--out", type=Path, default=OUT)
@@ -288,7 +310,14 @@ def main() -> None:
     args = ap.parse_args()
     _app = QGuiApplication([])
     args.out.mkdir(parents=True, exist_ok=True)
-    rendered = gp.generate(args.out, draw_hummingbird, char_id="hummingbird", name="Hummingbird")
+    rendered = gp.generate(
+        args.out,
+        draw_hummingbird,
+        char_id="hummingbird",
+        name="Hummingbird",
+        poses={"roaming": flying},
+        roam=FLY,
+    )
     total = sum(len(v) for v in rendered.values())
     print(f"wrote {total} frames for {len(rendered)} states to {args.out}")
     if args.sheet:

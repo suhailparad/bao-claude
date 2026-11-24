@@ -160,10 +160,11 @@ def draw_cat(p: QPainter, pose: Pose, t: float) -> None:
     draw_tail(p, t, sleepy)
 
     # back paws
+    lift_l, lift_r = gp.foot_lift(pose)
     p.setPen(outline_pen(1.6))
     p.setBrush(CREAM)
-    ellipse(p, 61, 141, 12, 8)
-    ellipse(p, 99, 141, 12, 8)
+    ellipse(p, 61, 141 - lift_l, 12, 8)
+    ellipse(p, 99, 141 - lift_r, 12, 8)
 
     # body (squash anchored at the feet), tabby stripes clipped to it
     p.save()
