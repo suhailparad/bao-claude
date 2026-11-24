@@ -18,7 +18,7 @@ def test_basic_flow_and_cues():
     assert t.resolve().state is State.THINKING
     t.apply(ev("PreToolUse", tool_name="Edit"), now=2)
     d = t.resolve()
-    assert (d.state, d.variant, d.text) == (State.WORKING, "typing", "Writing code…")
+    assert (d.state, d.variant, d.text) == (State.WORKING, "typing", "Bao is typing…")
     assert d.project == "proj-a"
     t.apply(ev("PostToolUse", tool_name="Edit"), now=3)
     assert t.resolve().state is State.THINKING
@@ -32,7 +32,7 @@ def test_unknown_tool_has_no_variant():
     t = SessionTracker()
     t.apply(ev("PreToolUse", tool_name="mcp__x__y"), now=0)
     d = t.resolve()
-    assert d.state is State.WORKING and d.variant is None and d.text == "Working…"
+    assert d.state is State.WORKING and d.variant is None and d.text == "Bao is working…"
 
 
 def test_notifications():
@@ -125,10 +125,10 @@ def test_done_shows_turn_duration():
     assert t.resolve().duration is None  # still working
     t.apply(ev("Stop"), now=352)
     d = t.resolve()
-    assert (d.text, d.duration) == ("Done in 4m 12s!", 252)
+    assert (d.text, d.duration) == ("Bao finished in 4m 12s!", 252)
     t.tick(now=356)
     d = t.resolve()
-    assert d.state is State.WAITING and d.duration == 252 and d.text == "Waiting for you"
+    assert d.state is State.WAITING and d.duration == 252 and d.text == "Bao is waiting for you"
     t.apply(ev("UserPromptSubmit"), now=400)
     assert t.resolve().duration is None
     assert t.snapshot()[0]["last_turn_seconds"] is None
@@ -139,7 +139,7 @@ def test_stop_without_prompt_has_no_duration():
     t.apply(ev("PreToolUse", tool_name="Read"), now=0)  # pet started mid-turn
     t.apply(ev("Stop"), now=10)
     d = t.resolve()
-    assert d.duration is None and d.text == "All done!"
+    assert d.duration is None and d.text == "Bao is done!"
 
 
 def test_permission_reminder_fires_once_per_request():
@@ -157,3 +157,13 @@ def test_permission_reminder_off():
     t = SessionTracker(Timings(permission_reminder=0))
     t.apply(ev("Notification", notification_type="permission_prompt"), now=0)
     assert t.due_reminders(now=10_000) == []
+
+
+def test_bubble_text_names_the_pet():
+    from bao.sessions import STATE_TEXT, VARIANT_TEXT, state_text
+
+    assert all(text.startswith("Bao ") for text in [*STATE_TEXT.values(), *VARIANT_TEXT.values()])
+    assert state_text(State.WORKING, "running") == "Bao is running…"
+    assert state_text(State.WORKING, "reading") == "Bao is reading…"
+    assert state_text(State.WORKING, None) == "Bao is working…"
+    assert state_text(State.THINKING, None) == "Bao is thinking…"
