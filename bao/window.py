@@ -274,9 +274,23 @@ class PetWindow(QWidget):
                 self._frames[self._frame % len(self._frames)],
                 QRectF(self._frames[0].rect()),
             )
+        if self.config.sounds_silenced():
+            self._paint_moon(p, sprite_rect)
         if (self._bubble_visible or self._hover) and self.display is not None:
             self._paint_bubble(p, sprite_rect)
         p.end()
+
+    def _paint_moon(self, p: QPainter, sprite: QRectF) -> None:
+        """Small crescent at the sprite's top-left: sounds are off (Do Not Disturb)."""
+        r = 9 * min(1.2, max(0.85, self.config.scale))
+        c = QPointF(sprite.left() + r + 4, sprite.top() + r + 4)
+        disc = QPainterPath()
+        disc.addEllipse(c, r, r)
+        bite = QPainterPath()
+        bite.addEllipse(QPointF(c.x() + r * 0.55, c.y() - r * 0.35), r * 0.85, r * 0.85)
+        p.setPen(QPen(QColor(40, 40, 60, 200), 1.2))
+        p.setBrush(QColor("#f5c84c"))
+        p.drawPath(disc.subtracted(bite))
 
     def _paint_bubble(self, p: QPainter, sprite: QRectF) -> None:
         title, sub = self._bubble_lines()
@@ -409,6 +423,15 @@ class PetWindow(QWidget):
         remind.setChecked(self.config.permission_reminder_seconds > 0)
         remind.toggled.connect(self._set_reminder)
         menu.addAction(remind)
+        dnd = QAction("Do Not Disturb", menu, checkable=True)
+        dnd.setChecked(self.config.do_not_disturb)
+        dnd.toggled.connect(self.set_do_not_disturb)
+        menu.addAction(dnd)
+        if self.config.quiet_hours:
+            start, end = self.config.quiet_hours
+            now = " (now)" if self.config.in_quiet_hours() else ""
+            info = menu.addAction(f"Quiet hours {start}–{end}{now}")
+            info.setEnabled(False)
 
         bubble = QAction("Show speech bubble", menu, checkable=True)
         bubble.setChecked(self.config.show_bubble)
@@ -445,6 +468,14 @@ class PetWindow(QWidget):
         self.config.permission_reminder_seconds = DEFAULT_REMINDER_SECONDS if on else 0.0
         self.config.save()
         self.reminder_changed.emit(self.config.permission_reminder_seconds)
+
+    def set_do_not_disturb(self, on: bool) -> None:
+        if on == self.config.do_not_disturb:
+            return
+        self.config.do_not_disturb = on
+        self.config.save()
+        log.info("do not disturb %s", "on" if on else "off")
+        self.update()
 
     def _set_show_bubble(self, show: bool) -> None:
         self.config.show_bubble = show

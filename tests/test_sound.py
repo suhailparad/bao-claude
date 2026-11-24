@@ -85,3 +85,12 @@ def test_system_sound_uses_afplay(player, monkeypatch, tmp_path):
     assert player.play("alert")
     assert calls[0][0] == "/usr/bin/afplay" and calls[0][-1] == str(fake)
     assert sound.resolve_sound("system:DoesNotExist") is None
+
+
+def test_do_not_disturb_silences_but_test_sound_still_plays(player):
+    player.config.do_not_disturb = True
+    assert not player.play("done")
+    assert player.play("done", force=True)  # "Play test sound" from the menu
+    player.config.do_not_disturb = False
+    player._last_played.clear()
+    assert player.play("done")

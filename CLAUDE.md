@@ -86,7 +86,7 @@ bao/characters/<id>/
 ## Project layout (target)
 ```
 bao/
-  __main__.py        # CLI: run | send | status | sound | quit | install-hooks | uninstall-hooks | doctor
+  __main__.py        # CLI: run | send | status | sound | dnd | quit | install-hooks | uninstall-hooks | doctor
   doctor.py          # setup checks
   focus.py           # click → focus the session's terminal (bundle id + tty, AppleScript/open -b)
   hook.py            # stdlib-only hook entry point
@@ -97,8 +97,9 @@ bao/
   character.py       # manifest loading/validation, frame loading
   window.py          # PetWindow: transparent frameless widget, animation, bubble, drag, context menu
   platform_mac.py    # pyobjc tweaks: hide Dock icon, float on all Spaces (no-ops elsewhere)
-  sound.py           # SoundPlayer: .wav → QSoundEffect, system:/aiff/mp3 → afplay; mute, volume, per-cue off, 1.5 s repeat guard
-  config.py          # ~/.bao/config.json (character, scale, muted, volume, muted_cues, show_bubble, permission_reminder_seconds, position)
+  sound.py           # SoundPlayer: .wav → QSoundEffect, system:/aiff/mp3 → afplay; mute, volume, per-cue off, DND/quiet hours, 1.5 s repeat guard
+  config.py          # ~/.bao/config.json (character, scale, muted, volume, muted_cues, show_bubble, permission_reminder_seconds,
+                     #   do_not_disturb, quiet_hours, position)
   installer.py       # merge/remove hooks in ~/.claude/settings.json (with backup)
   characters/panda/  # default character
   characters/cat/    # ginger tabby (same poses/props as the panda)
@@ -119,6 +120,7 @@ python -m bao send thinking               # simulate an event (aliases: start th
                                           #   working tool-done permission waiting done compact end)
 python -m bao status                      # JSON of what the pet shows + all sessions
 python -m bao sound done                  # play a cue through the running pet (respects mute)
+python -m bao dnd on                      # Do Not Disturb: silence sounds (off | status)
 python -m bao quit
 python -m bao install-hooks               # register hooks in ~/.claude/settings.json (backs it up first)
 python -m bao uninstall-hooks             # both accept --settings PATH (use a copy when testing!)

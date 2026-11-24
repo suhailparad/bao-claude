@@ -91,6 +91,24 @@ def cmd_sound(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_dnd(args: argparse.Namespace) -> int:
+    if args.state == "status":
+        try:
+            reply = send_message({"cmd": "status"}, timeout=1.0, expect_reply=True)
+        except OSError:
+            return _not_running()
+        dnd = (reply or {}).get("do_not_disturb", {})
+        print(f"do not disturb: {'on' if dnd.get('active') else 'off'}", end="")
+        print(f" (quiet hours {'–'.join(dnd['quiet_hours'])})" if dnd.get("quiet_hours") else "")
+        return 0
+    try:
+        send_message({"cmd": "dnd", "on": args.state == "on"}, timeout=1.0, expect_reply=True)
+    except OSError:
+        return _not_running()
+    print(f"do not disturb {args.state}")
+    return 0
+
+
 def cmd_quit(args: argparse.Namespace) -> int:
     try:
         send_message({"cmd": "quit"}, timeout=1.0, expect_reply=True)
@@ -174,6 +192,10 @@ def build_parser() -> argparse.ArgumentParser:
         sp = sub.add_parser(name, help=text)
         sp.add_argument("--settings", type=Path, help="settings.json path (default: ~/.claude)")
         sp.set_defaults(func=func)
+
+    d = sub.add_parser("dnd", help="turn Do Not Disturb (no sounds) on or off")
+    d.add_argument("state", choices=["on", "off", "status"])
+    d.set_defaults(func=cmd_dnd)
 
     sub.add_parser("quit", help="stop the running pet").set_defaults(func=cmd_quit)
     return p

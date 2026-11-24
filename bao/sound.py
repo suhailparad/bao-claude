@@ -79,7 +79,9 @@ class SoundPlayer(QObject):
 
     def play(self, cue: str, force: bool = False) -> bool:
         """Play a cue. Returns True if a sound was started."""
-        if not force and (self.config.muted or cue in self.config.muted_cues):
+        if not force and (
+            self.config.muted or cue in self.config.muted_cues or self.config.sounds_silenced()
+        ):
             return False
         path = self._files.get(cue)
         if path is None:
