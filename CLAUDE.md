@@ -38,7 +38,7 @@ Claude Code ──(hook JSON on stdin)──► hook.py ──(JSON line over Un
 | `PostToolUse` | `thinking` | – |
 | `Notification` (permission prompt) | `needs_permission` | `alert` |
 | `Notification` (idle / waiting for input) | `waiting` | `waiting` |
-| `Stop` | `done` (celebrate ~3 s) → `waiting` | `done` |
+| `Stop` | `done` (celebrate ~3 s, bubble "Done in 4m 12s!" = time since `UserPromptSubmit`) → `waiting` | `done` |
 | `SubagentStop` | unchanged | – |
 | `PreCompact` | `compacting` | – |
 | `SessionEnd` | remove session; `sleeping` if none left, quit after idle timeout | `bye` |

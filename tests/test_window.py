@@ -101,3 +101,10 @@ def test_show_offscreen_does_not_touch_cocoa(window, monkeypatch):
     monkeypatch.setattr(pm, "float_on_all_spaces", lambda wid: calls.append(wid))
     window.show()  # used to segfault: winId() isn't an NSView off-screen
     assert window.isVisible() and calls == []
+
+
+def test_bubble_shows_how_long_the_turn_took(window):
+    window.set_display(Display(State.WAITING, None, "Waiting for you", "proj", "s", 2, 252))
+    assert window._bubble_lines() == ("Waiting for you", "proj · took 4m 12s · 2 sessions")
+    window.set_display(Display(State.DONE, None, "Done in 4m 12s!", None, "s", 1, 252))
+    assert window._bubble_lines() == ("Done in 4m 12s!", "")

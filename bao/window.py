@@ -25,7 +25,7 @@ from PySide6.QtWidgets import QMenu, QWidget
 from . import platform_mac
 from .character import Animation, Character
 from .config import DEFAULT_CHARACTER, Config
-from .sessions import Display, State
+from .sessions import Display, State, format_duration
 from .sound import CUE_LABELS
 
 log = logging.getLogger(__name__)
@@ -219,6 +219,9 @@ class PetWindow(QWidget):
         if d is None:
             return "", ""
         sub = d.project or ""
+        if d.state is State.WAITING and d.duration is not None:
+            took = f"took {format_duration(d.duration)}"
+            sub = f"{sub} · {took}" if sub else took
         if d.session_count > 1:
             sub = f"{sub} · {d.session_count} sessions" if sub else f"{d.session_count} sessions"
         return d.text, sub
