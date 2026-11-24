@@ -90,7 +90,10 @@ class PetWindow(QWidget):
 
     def show(self) -> None:  # type: ignore[override]
         super().show()
-        platform_mac.float_on_all_spaces(int(self.winId()))
+        # winId() is an NSView* only on the Cocoa platform plugin; on others (offscreen,
+        # minimal) treating it as one segfaults.
+        if QGuiApplication.platformName() == "cocoa":
+            platform_mac.float_on_all_spaces(int(self.winId()))
 
     def set_display(self, display: Display) -> None:
         previous = self.display
