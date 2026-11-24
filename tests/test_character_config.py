@@ -33,7 +33,7 @@ def make_char(root: Path, cid="cat", states=None, **extra) -> Path:
     return d
 
 
-@pytest.mark.parametrize("cid", ["panda", "cat", "penguin"])
+@pytest.mark.parametrize("cid", ["panda", "cat", "penguin", "hummingbird"])
 def test_builtin_character_covers_every_state(cid):
     ch = load_character(BUILTIN_DIR / cid)
     assert ch.id == cid
@@ -108,7 +108,9 @@ def test_config_roundtrip_and_sanitize(tmp_path):
 
 
 def test_builtin_characters_have_their_own_sounds():
-    chars = [load_character(BUILTIN_DIR / cid) for cid in ("panda", "cat", "penguin")]
+    chars = [
+        load_character(BUILTIN_DIR / cid) for cid in ("panda", "cat", "penguin", "hummingbird")
+    ]
     for cue in ("hello", "waiting", "alert", "done", "bye"):
         sounds = {Path(ch.sound_for(cue)).read_bytes() for ch in chars}
         assert len(sounds) == len(chars), cue

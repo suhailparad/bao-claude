@@ -104,11 +104,14 @@ bao/
   characters/panda/  # default character
   characters/cat/    # ginger tabby (same poses/props as the panda)
   characters/penguin/ # penguin with flippers for arms (same poses/props as the panda)
+  characters/hummingbird/ # colourful hummingbird; wings for arms, blur-buzzing while awake
 tools/
   gen_panda.py       # draws placeholder panda frames with QPainter (poses, props, generate())
   gen_cat.py         # draws the cat with the panda's poses/props
   gen_penguin.py     # draws the penguin with the panda's poses/props
-  gen_sounds.py      # synthesizes .wav cues: panda chimes, cat meows/purr, penguin peeps/squawks
+  gen_hummingbird.py # draws the hummingbird with the panda's poses/props
+  gen_sounds.py      # synthesizes .wav cues: panda chimes, cat meows/purr, penguin peeps/squawks,
+                     #   hummingbird chirps/wing hum
 tests/
 ```
 
@@ -131,7 +134,8 @@ python -m bao doctor                      # check characters, config, hooks, run
 python tools/gen_panda.py                 # regenerate panda frames
 python tools/gen_cat.py                   # regenerate cat frames
 python tools/gen_penguin.py               # regenerate penguin frames
-python tools/gen_sounds.py                # regenerate panda chimes (--character cat | penguin)
+python tools/gen_hummingbird.py           # regenerate hummingbird frames
+python tools/gen_sounds.py                # regenerate panda chimes (--character cat | penguin | hummingbird)
 pytest
 ```
 
