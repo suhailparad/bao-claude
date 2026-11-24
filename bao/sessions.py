@@ -52,22 +52,24 @@ TOOL_VARIANTS: dict[str, str] = {
     **dict.fromkeys(["Bash", "BashOutput", "KillShell"], "running"),
 }
 
+PET_NAME = "Bao"  # the pet speaks about itself in the third person: "Bao is thinking…"
+
 STATE_TEXT: dict[State, str] = {
-    State.SLEEPING: "Zzz…",
-    State.IDLE: "Ready",
-    State.GREETING: "Hi there!",
-    State.COMPACTING: "Tidying my memory…",
-    State.THINKING: "Thinking…",
-    State.WORKING: "Working…",
-    State.DONE: "All done!",
-    State.WAITING: "Waiting for you",
-    State.NEEDS_PERMISSION: "Needs your permission!",
+    State.SLEEPING: f"{PET_NAME} is sleeping",
+    State.IDLE: f"{PET_NAME} is ready",
+    State.GREETING: f"{PET_NAME} says hi!",
+    State.COMPACTING: f"{PET_NAME} is tidying up…",
+    State.THINKING: f"{PET_NAME} is thinking…",
+    State.WORKING: f"{PET_NAME} is working…",
+    State.DONE: f"{PET_NAME} is done!",
+    State.WAITING: f"{PET_NAME} is waiting for you",
+    State.NEEDS_PERMISSION: f"{PET_NAME} needs your permission!",
 }
 
 VARIANT_TEXT: dict[str, str] = {
-    "reading": "Reading…",
-    "typing": "Writing code…",
-    "running": "Running a command…",
+    "reading": f"{PET_NAME} is reading…",
+    "typing": f"{PET_NAME} is typing…",
+    "running": f"{PET_NAME} is running…",
 }
 
 # Notification types (Claude Code `notification_type`) that are informational only.
@@ -143,7 +145,7 @@ def format_duration(seconds: float) -> str:
 
 def state_text(state: State, variant: str | None, duration: float | None = None) -> str:
     if state is State.DONE and duration is not None:
-        return f"Done in {format_duration(duration)}!"
+        return f"{PET_NAME} finished in {format_duration(duration)}!"
     if state is State.WORKING and variant in VARIANT_TEXT:
         return VARIANT_TEXT[variant]
     return STATE_TEXT[state]

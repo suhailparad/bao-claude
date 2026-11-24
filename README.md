@@ -50,7 +50,7 @@ quits about 15 minutes after the last session ends.
 | compacting the conversation | squishes down, with sparkles | – |
 | ending the session | falls asleep | bye |
 
-When Claude finishes, the bubble says how long the turn took ("Done in 4m 12s!", then
+When Claude finishes, the bubble says how long the turn took ("Bao finished in 4m 12s!", then
 "took 4m 12s" while it waits for you), so you know at a glance whether it's worth looking.
 
 If a permission request goes unanswered for a minute, the pet shakes and plays the alert
