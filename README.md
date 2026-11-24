@@ -45,8 +45,8 @@ pet (right-click → Quit Bao), then delete Bao.app and `~/.bao`.
 ## Install from source
 
 ```bash
-git clone https://github.com/suhailparad/bao.git
-cd bao
+git clone https://github.com/suhailparad/bao-claude.git
+cd bao-claude
 python -m venv .venv && source .venv/bin/activate
 pip install -e .
 
