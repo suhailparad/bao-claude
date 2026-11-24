@@ -51,7 +51,9 @@ Use the `notification_type` field of the Notification input when it's there. Oth
 
 ### Multi-session: one pet, highest priority wins
 Priority: `needs_permission > waiting > done > working > thinking > compacting > greeting > idle > sleeping`.
-When priorities tie, the most recent event wins. The speech bubble shows the state text plus the project name (basename of `cwd`).
+When priorities tie, the most recent event wins. The speech bubble shows the state text ("Bao is thinking…"), wrapped onto at most two balanced
+lines, plus a small line for extras only ("took 4m 12s · 2 sessions"). The project name
+(basename of `cwd`) is kept in `Display`/`status` but not shown in the bubble.
 
 ## Characters (sprite packs)
 Each character is a folder; adding one means adding a folder, with **no code changes**.

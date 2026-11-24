@@ -58,7 +58,8 @@ once more (turn this off in the right-click menu, or set `permission_reminder_se
 
 With several Claude Code sessions open there's still one pet. It shows the most
 urgent state (permission first, then waiting, then done, and so on), and the speech
-bubble names the project it's about.
+bubble says how many sessions there are. Click the pet to jump to the session it's showing;
+`python -m bao status` lists every session with its project.
 
 ## Using it
 
