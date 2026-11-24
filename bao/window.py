@@ -32,7 +32,9 @@ from .sound import CUE_LABELS
 
 log = logging.getLogger(__name__)
 
-BUBBLE_H = 54  # logical px reserved above the sprite (before scaling)
+BUBBLE_H = 66  # logical px reserved above the sprite (before scaling): 2 text lines + 1 small
+TITLE_WRAP_W = 132  # logical px: longer bubble text wraps onto a second line
+TITLE_MAX_LINES = 2
 MIN_W = 210
 BUBBLE_SECONDS = 4.0
 STICKY_BUBBLE = {State.WAITING, State.NEEDS_PERMISSION}
@@ -50,6 +52,34 @@ def load_frames(anim: Animation) -> list[QPixmap]:
         w, h = anim.sheet.frame_size
         return [sheet.copy(QRect(i * w, 0, w, h)) for i in range(anim.sheet.count)]
     return [QPixmap(str(p)) for p in anim.frames]
+
+
+def wrap_text(text: str, metrics: QFontMetricsF, max_w: float, max_lines: int) -> list[str]:
+    """Split ``text`` into at most ``max_lines`` lines no wider than ``max_w``.
+
+    Breaks between words and keeps the lines balanced ("Bao is waiting / for you", not
+    "Bao is waiting for / you"). Whatever still doesn't fit is elided on the last line.
+    """
+    words = text.split()
+    if not words:
+        return [""]
+    width = metrics.horizontalAdvance
+    if width(text) <= max_w or max_lines <= 1 or len(words) == 1:
+        return [metrics.elidedText(" ".join(words), Qt.ElideRight, max_w)]
+    if max_lines == 2:
+        # try every break; prefer splits where both lines fit, then the most even one
+        def cost(i: int) -> tuple[bool, float]:
+            a, b = width(" ".join(words[:i])), width(" ".join(words[i:]))
+            return (max(a, b) > max_w, max(a, b))
+
+        i = min(range(1, len(words)), key=cost)
+        rest = metrics.elidedText(" ".join(words[i:]), Qt.ElideRight, max_w)
+        return [metrics.elidedText(" ".join(words[:i]), Qt.ElideRight, max_w), rest]
+    # more lines: fill greedily, keep the last two balanced
+    line = words.pop(0)
+    while words and width(f"{line} {words[0]}") <= max_w:
+        line = f"{line} {words.pop(0)}"
+    return [line, *wrap_text(" ".join(words), metrics, max_w, max_lines - 1)]
 
 
 class PetWindow(QWidget):
@@ -247,16 +277,16 @@ class PetWindow(QWidget):
         self.update()
 
     def _bubble_lines(self) -> tuple[str, str]:
+        """(main text, small second line). The second line holds only extras, if any."""
         d = self.display
         if d is None:
             return "", ""
-        sub = d.project or ""
+        extras = []
         if d.state is State.WAITING and d.duration is not None:
-            took = f"took {format_duration(d.duration)}"
-            sub = f"{sub} · {took}" if sub else took
+            extras.append(f"took {format_duration(d.duration)}")
         if d.session_count > 1:
-            sub = f"{sub} · {d.session_count} sessions" if sub else f"{d.session_count} sessions"
-        return d.text, sub
+            extras.append(f"{d.session_count} sessions")
+        return d.text, " · ".join(extras)
 
     # -- painting -------------------------------------------------------------------------
 
@@ -306,9 +336,10 @@ class PetWindow(QWidget):
         pad = 8 * s
         max_w = self.width() - 4
         sub = m2.elidedText(sub, Qt.ElideMiddle, max_w - 2 * pad) if sub else ""
-        title = m1.elidedText(title, Qt.ElideRight, max_w - 2 * pad)
-        w = min(max_w, max(m1.horizontalAdvance(title), m2.horizontalAdvance(sub)) + 2 * pad)
-        h = m1.height() + (m2.height() if sub else 0) + pad * 1.2
+        lines = wrap_text(title, m1, min(TITLE_WRAP_W * s, max_w - 2 * pad), TITLE_MAX_LINES)
+        widest = max([m1.horizontalAdvance(line) for line in lines] + [m2.horizontalAdvance(sub)])
+        w = min(max_w, widest + 2 * pad)
+        h = len(lines) * m1.lineSpacing() + (m2.height() if sub else 0) + pad * 1.2
         tail = 7 * s
         x = max(2.0, min(self.width() - w - 2, sprite.center().x() - w / 2))
         y = max(1.0, self._bubble_height() - h - tail - 2)
@@ -333,11 +364,13 @@ class PetWindow(QWidget):
 
         p.setPen(QColor("#26262b"))
         p.setFont(f1)
-        p.drawText(QPointF(x + pad, y + pad * 0.6 + m1.ascent()), title)
+        for i, line in enumerate(lines):
+            p.drawText(QPointF(x + pad, y + pad * 0.6 + i * m1.lineSpacing() + m1.ascent()), line)
         if sub:
             p.setPen(QColor("#6b6b75"))
             p.setFont(f2)
-            p.drawText(QPointF(x + pad, y + pad * 0.6 + m1.height() + m2.ascent()), sub)
+            top = y + pad * 0.6 + len(lines) * m1.lineSpacing()
+            p.drawText(QPointF(x + pad, top + m2.ascent()), sub)
 
     # -- mouse ----------------------------------------------------------------------------
 

@@ -47,9 +47,9 @@ def test_bubble_rules(window):
     assert window._bubble_visible and window._bubble_timer.isActive()  # auto-hides
     window.set_display(disp(State.SLEEPING))
     assert not window._bubble_visible
-    assert window._bubble_lines()[1] == "proj"
+    assert window._bubble_lines()[1] == ""  # no folder name: only extras go on line two
     window.set_display(disp(State.WAITING, count=3))
-    assert window._bubble_lines()[1] == "proj · 3 sessions"
+    assert window._bubble_lines()[1] == "3 sessions"
 
 
 def test_grab_renders(window):
@@ -106,7 +106,7 @@ def test_show_offscreen_does_not_touch_cocoa(window, monkeypatch):
 def test_bubble_shows_how_long_the_turn_took(window):
     text = "Bao is waiting for you"
     window.set_display(Display(State.WAITING, None, text, "proj", "s", 2, 252))
-    assert window._bubble_lines() == (text, "proj · took 4m 12s · 2 sessions")
+    assert window._bubble_lines() == (text, "took 4m 12s · 2 sessions")
     window.set_display(Display(State.DONE, None, "Bao finished in 4m 12s!", None, "s", 1, 252))
     assert window._bubble_lines() == ("Bao finished in 4m 12s!", "")
 
@@ -173,3 +173,24 @@ def test_do_not_disturb_menu_moon_and_ipc(window, pet_home):
     status = c.handle_from_thread({"cmd": "status"})
     assert status["do_not_disturb"]["manual"] is False
     assert status["do_not_disturb"]["quiet_hours"] == ["22:00", "08:00"]
+
+
+def test_wrap_text(qapp):
+    from PySide6.QtGui import QFont, QFontMetricsF
+
+    from bao.window import wrap_text
+
+    f = QFont()
+    f.setPixelSize(13)
+    f.setBold(True)
+    m = QFontMetricsF(f)
+    assert wrap_text("Bao is thinking…", m, 132, 2) == ["Bao is thinking…"]
+    for text in ("Bao needs your permission!", "Bao is waiting for you", "Bao finished in 4m 12s!"):
+        lines = wrap_text(text, m, 132, 2)
+        assert len(lines) == 2 and " ".join(lines) == text
+        assert all(m.horizontalAdvance(line) <= 132 for line in lines)
+        a, b = (m.horizontalAdvance(line) for line in lines)
+        assert min(a, b) >= 0.5 * max(a, b)  # balanced: no lonely "you" on line two
+    long = wrap_text("word " * 40, m, 132, 2)
+    assert len(long) == 2 and long[1].endswith("…")  # never more than two lines
+    assert wrap_text("", m, 132, 2) == [""]
