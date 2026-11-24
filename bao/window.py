@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import logging
+import math
+import time
 from collections.abc import Callable
 
 from PySide6.QtCore import QPoint, QPointF, QRect, QRectF, Qt, QTimer, Signal
@@ -36,6 +38,9 @@ BUBBLE_SECONDS = 4.0
 STICKY_BUBBLE = {State.WAITING, State.NEEDS_PERMISSION}
 HIDDEN_BUBBLE = {State.SLEEPING}
 SIZES = [("Small", 0.7), ("Medium", 1.0), ("Large", 1.4)]
+SHAKE_SECONDS = 0.9
+SHAKE_PX = 7.0  # at scale 1
+DEFAULT_REMINDER_SECONDS = 60.0
 VOLUMES = [("25%", 0.25), ("50%", 0.5), ("75%", 0.75), ("100%", 1.0)]
 
 
@@ -53,6 +58,7 @@ class PetWindow(QWidget):
     sound_settings_changed = Signal()
     test_sound_requested = Signal()
     clicked = Signal(object)  # Display under the click: focus that session's terminal
+    reminder_changed = Signal(float)  # seconds (0 = off)
 
     def __init__(self, config: Config, characters: dict[str, Character]) -> None:
         super().__init__(
@@ -83,6 +89,10 @@ class PetWindow(QWidget):
         self._bubble_timer = QTimer(self)
         self._bubble_timer.setSingleShot(True)
         self._bubble_timer.timeout.connect(self._hide_bubble)
+        self._shake_started: float | None = None
+        self._shake_timer = QTimer(self)
+        self._shake_timer.setInterval(16)
+        self._shake_timer.timeout.connect(self._shake_step)
 
         self._apply_size()
         self._restore_position()
@@ -106,6 +116,28 @@ class PetWindow(QWidget):
             display.project,
         ):
             self._show_bubble_for(display)
+        self.update()
+
+    def nudge(self) -> None:
+        """Shake the pet and show its bubble: something still needs the user."""
+        self._shake_started = time.monotonic()
+        self._shake_timer.start()
+        if self.display is not None:
+            self._show_bubble_for(self.display)
+
+    def _shake_offset(self) -> float:
+        if self._shake_started is None:
+            return 0.0
+        t = time.monotonic() - self._shake_started
+        if t >= SHAKE_SECONDS:
+            return 0.0
+        decay = 1 - t / SHAKE_SECONDS
+        return SHAKE_PX * self.config.scale * decay * math.sin(t * 2 * math.pi * 7)
+
+    def _shake_step(self) -> None:
+        if self._shake_started is None or time.monotonic() - self._shake_started >= SHAKE_SECONDS:
+            self._shake_started = None
+            self._shake_timer.stop()
         self.update()
 
     # -- character / animation -------------------------------------------------------------
@@ -233,7 +265,9 @@ class PetWindow(QWidget):
         p.setRenderHint(QPainter.Antialiasing)
         p.setRenderHint(QPainter.SmoothPixmapTransform)
         sw, sh = self._sprite_size()
-        sprite_rect = QRectF((self.width() - sw) / 2, self.height() - sh, sw, sh)
+        sprite_rect = QRectF(
+            (self.width() - sw) / 2 + self._shake_offset(), self.height() - sh, sw, sh
+        )
         if self._frames:
             p.drawPixmap(
                 sprite_rect,
@@ -371,6 +405,11 @@ class PetWindow(QWidget):
         sound.addSeparator()
         sound.addAction("Play test sound", self.test_sound_requested.emit)
 
+        remind = QAction("Remind me about permission requests", menu, checkable=True)
+        remind.setChecked(self.config.permission_reminder_seconds > 0)
+        remind.toggled.connect(self._set_reminder)
+        menu.addAction(remind)
+
         bubble = QAction("Show speech bubble", menu, checkable=True)
         bubble.setChecked(self.config.show_bubble)
         bubble.toggled.connect(self._set_show_bubble)
@@ -401,6 +440,11 @@ class PetWindow(QWidget):
         muted.discard(cue) if enabled else muted.add(cue)
         self.config.muted_cues = sorted(muted)
         self.config.save()
+
+    def _set_reminder(self, on: bool) -> None:
+        self.config.permission_reminder_seconds = DEFAULT_REMINDER_SECONDS if on else 0.0
+        self.config.save()
+        self.reminder_changed.emit(self.config.permission_reminder_seconds)
 
     def _set_show_bubble(self, show: bool) -> None:
         self.config.show_bubble = show

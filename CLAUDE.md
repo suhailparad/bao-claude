@@ -36,7 +36,7 @@ Claude Code ──(hook JSON on stdin)──► hook.py ──(JSON line over Un
 | `UserPromptSubmit` | `thinking` | – |
 | `PreToolUse` | `working` (variant by tool: `reading` Read/Grep/Glob, `typing` Edit/Write, `running` Bash) | – |
 | `PostToolUse` | `thinking` | – |
-| `Notification` (permission prompt) | `needs_permission` | `alert` |
+| `Notification` (permission prompt) | `needs_permission`; unanswered for `permission_reminder_seconds` (60) → shake + `alert` once more | `alert` |
 | `Notification` (idle / waiting for input) | `waiting` | `waiting` |
 | `Stop` | `done` (celebrate ~3 s, bubble "Done in 4m 12s!" = time since `UserPromptSubmit`) → `waiting` | `done` |
 | `SubagentStop` | unchanged | – |
@@ -98,7 +98,7 @@ bao/
   window.py          # PetWindow: transparent frameless widget, animation, bubble, drag, context menu
   platform_mac.py    # pyobjc tweaks: hide Dock icon, float on all Spaces (no-ops elsewhere)
   sound.py           # SoundPlayer: .wav → QSoundEffect, system:/aiff/mp3 → afplay; mute, volume, per-cue off, 1.5 s repeat guard
-  config.py          # ~/.bao/config.json (character, scale, muted, volume, muted_cues, show_bubble, position)
+  config.py          # ~/.bao/config.json (character, scale, muted, volume, muted_cues, show_bubble, permission_reminder_seconds, position)
   installer.py       # merge/remove hooks in ~/.claude/settings.json (with backup)
   characters/panda/  # default character
   characters/cat/    # ginger tabby (same poses/props as the panda)

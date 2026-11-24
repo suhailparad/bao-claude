@@ -108,3 +108,44 @@ def test_bubble_shows_how_long_the_turn_took(window):
     assert window._bubble_lines() == ("Waiting for you", "proj · took 4m 12s · 2 sessions")
     window.set_display(Display(State.DONE, None, "Done in 4m 12s!", None, "s", 1, 252))
     assert window._bubble_lines() == ("Done in 4m 12s!", "")
+
+
+def test_nudge_shakes_and_shows_bubble(window, monkeypatch):
+    import bao.window as wmod
+
+    window.set_display(disp(State.NEEDS_PERMISSION))
+    window._hide_bubble()
+    clock = [100.0]
+    monkeypatch.setattr(wmod.time, "monotonic", lambda: clock[0])
+    window.nudge()
+    assert window._bubble_visible and window._shake_timer.isActive()
+    clock[0] += 0.03
+    assert window._shake_offset() != 0
+    clock[0] += wmod.SHAKE_SECONDS
+    window._shake_step()
+    assert window._shake_offset() == 0 and not window._shake_timer.isActive()
+
+
+def test_reminder_menu_toggle(window, pet_home):
+    got = []
+    window.reminder_changed.connect(got.append)
+    window._set_reminder(False)
+    window._set_reminder(True)
+    assert got == [0.0, 60.0] and Config.load().permission_reminder_seconds == 60.0
+
+
+def test_controller_reminds_with_alert_and_nudge(qapp):
+    from bao.app import PetController
+    from bao.sessions import Timings
+
+    c = PetController(Timings(permission_reminder=0.001))
+    cues, nudges = [], []
+    c.cue.connect(cues.append)
+    c.nudge.connect(nudges.append)
+    c.apply({"event": "Notification", "session_id": "s", "notification_type": "permission_prompt"})
+    import time
+
+    time.sleep(0.01)
+    c._on_tick()
+    c._on_tick()
+    assert cues == ["alert", "alert"] and nudges == ["s"]  # first alert is the request itself

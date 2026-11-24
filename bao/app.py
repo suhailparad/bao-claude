@@ -31,6 +31,7 @@ class PetController(QObject):
 
     display_changed = Signal(object)  # Display
     cue = Signal(str)  # sound cue name
+    nudge = Signal(str)  # session id whose permission request is still unanswered
     quit_requested = Signal()
     _incoming = Signal(object)  # dict, emitted from the IPC thread → queued to GUI thread
 
@@ -90,7 +91,17 @@ class PetController(QObject):
     def _on_tick(self) -> None:
         if self.tracker.tick():
             self._refresh()
+        self._remind()
         self._check_auto_quit(time.monotonic())
+
+    def _remind(self) -> None:
+        for sid in self.tracker.due_reminders():
+            log.info("permission request in session %s still unanswered, reminding", sid)
+            self.cue.emit("alert")
+            self.nudge.emit(sid)
+
+    def set_reminder_seconds(self, seconds: float) -> None:
+        self.tracker.timings.permission_reminder = seconds
 
     def _check_auto_quit(self, now: float) -> None:
         if self.tracker.sessions:
@@ -160,7 +171,10 @@ def run(initial_event: dict[str, Any] | None = None, verbose: bool = False) -> i
     config = Config.load()
     window = PetWindow(config, characters)
 
-    controller = PetController(quit_after=config.quit_after_minutes * 60)
+    controller = PetController(
+        Timings(permission_reminder=config.permission_reminder_seconds),
+        quit_after=config.quit_after_minutes * 60,
+    )
     controller.display_changed.connect(
         lambda d: log.info(
             "state → %s%s [%s] %r (%d session(s))",
@@ -181,6 +195,8 @@ def run(initial_event: dict[str, Any] | None = None, verbose: bool = False) -> i
     window.test_sound_requested.connect(lambda: player.play("done", force=True))
     window.quit_requested.connect(app.quit)
     window.clicked.connect(controller.focus_session)
+    controller.nudge.connect(lambda _sid: window.nudge())
+    window.reminder_changed.connect(controller.set_reminder_seconds)
     window.set_display(controller.display)
     window.show()
 

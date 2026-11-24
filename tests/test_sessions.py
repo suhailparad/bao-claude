@@ -140,3 +140,20 @@ def test_stop_without_prompt_has_no_duration():
     t.apply(ev("Stop"), now=10)
     d = t.resolve()
     assert d.duration is None and d.text == "All done!"
+
+
+def test_permission_reminder_fires_once_per_request():
+    t = SessionTracker(Timings(permission_reminder=60, sleep_after=1e9, forget_after=1e9))
+    t.apply(ev("Notification", notification_type="permission_prompt"), now=0)
+    assert t.due_reminders(now=59) == []
+    assert t.due_reminders(now=60) == ["a"]
+    assert t.due_reminders(now=500) == []  # only once
+    t.apply(ev("PostToolUse"), now=501)  # answered
+    t.apply(ev("Notification", notification_type="permission_prompt"), now=502)
+    assert t.due_reminders(now=562) == ["a"]  # a new request gets its own reminder
+
+
+def test_permission_reminder_off():
+    t = SessionTracker(Timings(permission_reminder=0))
+    t.apply(ev("Notification", notification_type="permission_prompt"), now=0)
+    assert t.due_reminders(now=10_000) == []

@@ -25,6 +25,7 @@ class Config:
     volume: float = 0.7
     show_bubble: bool = True
     muted_cues: list[str] = field(default_factory=list)  # e.g. ["hello", "bye"]
+    permission_reminder_seconds: float = 60.0  # nudge again about a pending permission (0 = off)
     quit_after_minutes: float = 15.0  # quit this long after the last session ends (0 = never)
     position: list[int] | None = None  # [x, y] of the window's top-left corner
 
@@ -61,6 +62,9 @@ class Config:
         self.volume = _num(self.volume, defaults.volume, 0.0, 1.0)
         self.quit_after_minutes = _num(
             self.quit_after_minutes, defaults.quit_after_minutes, 0, 1440
+        )
+        self.permission_reminder_seconds = _num(
+            self.permission_reminder_seconds, defaults.permission_reminder_seconds, 0, 3600
         )
         self.muted = bool(self.muted)
         self.show_bubble = bool(self.show_bubble)
