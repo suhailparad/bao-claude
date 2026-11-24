@@ -3,13 +3,15 @@
     python tools/gen_sounds.py                    # panda chimes -> bao/characters/panda/sounds/
     python tools/gen_sounds.py --character cat    # cat meows    -> bao/characters/cat/sounds/
     python tools/gen_sounds.py --character penguin  # penguin peeps -> characters/penguin/sounds/
+    python tools/gen_sounds.py --character hummingbird  # chirps + wing hum
     python tools/gen_sounds.py --play done        # also plays one (macOS afplay)
 
 Panda: soft marimba/bell-like tones (a few decaying partials per note).
 Cat: synthesized meows, chirps and a purr (a harmonic voice whose pitch glides while
 formants move from "ee" to "oo"). Penguin: the same voice, pitched up and buzzier: quick
-peeps, raspy squawks and a little bray. Updates the "sounds" section of the character's
-manifest.json.
+peeps, raspy squawks and a little bray. Hummingbird: quick high chirps (pure tones that
+sweep in pitch), twittering trills and a soft wing hum. Updates the "sounds" section of
+the character's manifest.json.
 """
 
 from __future__ import annotations
@@ -351,12 +353,99 @@ def synth_cat(spec: dict, seed: int) -> list[float]:
     return [x / m * peak for x in buf]
 
 
-VOICES = {"panda": "chime", "cat": "cat", "penguin": "penguin"}
+# ---------------------------------------------------------------- hummingbird voice
+
+# Parts: {"chirp": (f_start, f_end)} a short sweeping whistle; {"trill": (f_lo, f_hi), "rate"}
+# a fast warbling twitter; {"hum": f} the buzz of wings. All have "start", "dur", "gain".
+BIRD_CUES: dict[str, dict] = {
+    # wings hum in, then a bright "tsee-tsee!"
+    "hello": {
+        "parts": [
+            {"hum": 190, "start": 0.0, "dur": 0.5, "gain": 0.5},
+            {"chirp": (2600, 3600), "start": 0.12, "dur": 0.08, "gain": 1.0},
+            {"chirp": (2800, 4000), "start": 0.26, "dur": 0.11, "gain": 1.0},
+        ],
+    },
+    # one soft, rising "tsip?"
+    "waiting": {
+        "parts": [{"chirp": (2400, 3300), "start": 0.0, "dur": 0.16, "gain": 1.0}],
+        "peak": 0.36,
+    },
+    # five sharp, quick "chip!"s
+    "alert": {
+        "parts": [
+            {"chirp": (3800, 2900), "start": i * 0.09, "dur": 0.045, "gain": 1.0} for i in range(5)
+        ],
+        "peak": 0.5,
+    },
+    # a happy twitter that climbs, a final sparkle chirp, and a hum underneath
+    "done": {
+        "parts": [
+            {"hum": 200, "start": 0.0, "dur": 0.85, "gain": 0.4},
+            {"trill": (2500, 3300), "rate": 22, "start": 0.0, "dur": 0.32, "gain": 0.8},
+            {"trill": (2900, 3800), "rate": 26, "start": 0.3, "dur": 0.28, "gain": 0.9},
+            {"chirp": (3200, 4300), "start": 0.62, "dur": 0.14, "gain": 1.0},
+        ],
+        "peak": 0.48,
+    },
+    # a falling chirp as the wing hum fades away
+    "bye": {
+        "parts": [
+            {"chirp": (3400, 2300), "start": 0.0, "dur": 0.18, "gain": 1.0},
+            {"hum": 185, "start": 0.1, "dur": 0.75, "gain": 0.55, "fade": True},
+        ],
+        "peak": 0.42,
+    },
+}
+
+
+def synth_bird(spec: dict, seed: int) -> list[float]:
+    rng = random.Random(seed)
+    total = max(part["start"] + part["dur"] for part in spec["parts"]) + 0.05
+    buf = [0.0] * int(total * RATE)
+    for part in spec["parts"]:
+        n = int(part["dur"] * RATE)
+        s0 = int(part["start"] * RATE)
+        phase = 0.0
+        lp = 0.0
+        for i in range(n):
+            x = i / n
+            t = i / RATE
+            if "hum" in part:  # wing buzz: low tone + harmonics, pulsing with the wingbeat
+                f = part["hum"] * (1 + 0.015 * math.sin(2 * math.pi * 7 * t))
+                phase += 2 * math.pi * f / RATE
+                lp += 0.15 * (rng.uniform(-1, 1) - lp)
+                beat = 0.75 + 0.25 * math.sin(2 * math.pi * 48 * t)
+                v = beat * (
+                    math.sin(phase) + 0.5 * math.sin(2 * phase) + 0.25 * math.sin(3 * phase)
+                )
+                v += 0.6 * lp
+                env = min(1.0, x / 0.25) * (1 - x if part.get("fade") else min(1.0, (1 - x) / 0.2))
+            else:
+                if "chirp" in part:
+                    f0, f1 = part["chirp"]
+                    f = f0 + (f1 - f0) * x**0.7
+                else:  # trill: pitch warbles quickly between lo and hi while rising a bit
+                    lo, hi = part["trill"]
+                    wob = 0.5 + 0.5 * math.sin(2 * math.pi * part["rate"] * t)
+                    f = (lo + (hi - lo) * wob) * (1 + 0.08 * x)
+                phase += 2 * math.pi * f / RATE
+                v = math.sin(phase) + 0.18 * math.sin(2 * phase)
+                env = math.sin(math.pi * x) ** 0.6  # soft start and end: no clicks
+            buf[s0 + i] += part["gain"] * env * v
+    m = max(abs(x) for x in buf) or 1.0
+    peak = spec.get("peak", 0.45)
+    return [x / m * peak for x in buf]
+
+
+VOICES = {"panda": "chime", "cat": "cat", "penguin": "penguin", "hummingbird": "bird"}
 
 
 def render(voice: str, name: str) -> list[float]:
     if voice == "cat":
         return synth_cat(CAT_CUES[name], seed=sum(map(ord, name)))
+    if voice == "bird":
+        return synth_bird(BIRD_CUES[name], seed=sum(map(ord, name)) + 2)
     if voice == "penguin":  # same voice model as the cat, different calls
         return synth_cat(PENGUIN_CUES[name], seed=sum(map(ord, name)) + 1)
     spec = CUES[name]

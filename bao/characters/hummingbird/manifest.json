@@ -1,0 +1,80 @@
+{
+  "id": "hummingbird",
+  "name": "Hummingbird",
+  "version": 1,
+  "author": "bao",
+  "size": [
+    160,
+    160
+  ],
+  "fallback_state": "idle",
+  "states": {
+    "idle": {
+      "frames": "frames/idle",
+      "fps": 6,
+      "loop": true
+    },
+    "greeting": {
+      "frames": "frames/greeting",
+      "fps": 10,
+      "loop": true
+    },
+    "thinking": {
+      "frames": "frames/thinking",
+      "fps": 6,
+      "loop": true
+    },
+    "working": {
+      "frames": "frames/working",
+      "fps": 8,
+      "loop": true
+    },
+    "typing": {
+      "frames": "frames/typing",
+      "fps": 8,
+      "loop": true
+    },
+    "running": {
+      "frames": "frames/running",
+      "fps": 6,
+      "loop": true
+    },
+    "reading": {
+      "frames": "frames/reading",
+      "fps": 6,
+      "loop": true
+    },
+    "waiting": {
+      "frames": "frames/waiting",
+      "fps": 4,
+      "loop": true
+    },
+    "needs_permission": {
+      "frames": "frames/needs_permission",
+      "fps": 8,
+      "loop": true
+    },
+    "done": {
+      "frames": "frames/done",
+      "fps": 12,
+      "loop": true
+    },
+    "compacting": {
+      "frames": "frames/compacting",
+      "fps": 6,
+      "loop": true
+    },
+    "sleeping": {
+      "frames": "frames/sleeping",
+      "fps": 3,
+      "loop": true
+    }
+  },
+  "sounds": {
+    "hello": "sounds/hello.wav",
+    "waiting": "sounds/waiting.wav",
+    "alert": "sounds/alert.wav",
+    "done": "sounds/done.wav",
+    "bye": "sounds/bye.wav"
+  }
+}

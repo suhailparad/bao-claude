@@ -69,7 +69,7 @@ def test_scale_menu_and_config(window, pet_home):
 
 def test_unknown_character_falls_back(qapp, pet_home):
     w = PetWindow(Config(character="dragon"), discover_characters())
-    assert {"cat", "penguin"} <= set(w.characters)  # panda is still the default
+    assert {"cat", "penguin", "hummingbird"} <= set(w.characters)  # panda is still the default
     assert w.character.id == "panda"
     w.close()
 
