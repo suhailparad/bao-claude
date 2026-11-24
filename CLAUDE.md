@@ -44,6 +44,9 @@ Claude Code ──(hook JSON on stdin)──► hook.py ──(JSON line over Un
 | `SessionEnd` | remove session; `sleeping` if none left, quit after idle timeout | `bye` |
 | (no events for N min) | `sleeping` | – |
 
+On `SessionStart`/`UserPromptSubmit` the hook also sends `terminal` (`__CFBundleIdentifier` and
+the tty found by walking parent processes with `ps`, ≤ 80 ms) so a click on the pet can focus it.
+
 Use the `notification_type` field of the Notification input when it's there. Otherwise fall back to matching the `message` text.
 
 ### Multi-session: one pet, highest priority wins
@@ -85,6 +88,7 @@ bao/characters/<id>/
 bao/
   __main__.py        # CLI: run | send | status | sound | quit | install-hooks | uninstall-hooks | doctor
   doctor.py          # setup checks
+  focus.py           # click → focus the session's terminal (bundle id + tty, AppleScript/open -b)
   hook.py            # stdlib-only hook entry point
   paths.py           # ~/.bao/* locations (BAO_HOME overrides; stdlib only)
   ipc.py             # Unix-socket client/server + single-instance lock (stdlib only)

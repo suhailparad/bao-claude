@@ -52,6 +52,7 @@ class PetWindow(QWidget):
     character_changed = Signal(str)
     sound_settings_changed = Signal()
     test_sound_requested = Signal()
+    clicked = Signal(object)  # Display under the click: focus that session's terminal
 
     def __init__(self, config: Config, characters: dict[str, Character]) -> None:
         super().__init__(
@@ -304,10 +305,11 @@ class PetWindow(QWidget):
             self._drag_offset = None
             if self._dragged:
                 self._save_position()
-            elif self.display is not None:  # click: show the bubble again
+            elif self.display is not None:  # click: show the bubble, focus the terminal
                 self._bubble_visible = True
                 self._bubble_timer.start(int(BUBBLE_SECONDS * 1000))
                 self.update()
+                self.clicked.emit(self.display)
 
     def enterEvent(self, _e) -> None:  # noqa: N802
         self._hover = True

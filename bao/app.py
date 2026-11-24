@@ -12,7 +12,7 @@ from typing import Any
 from PySide6.QtCore import QObject, QTimer, Signal
 from PySide6.QtWidgets import QApplication
 
-from . import platform_mac
+from . import focus, platform_mac
 from .character import discover_characters
 from .config import Config
 from .ipc import EventServer, InstanceLock, send_message
@@ -77,6 +77,15 @@ class PetController(QObject):
         for name in cues:
             self.cue.emit(name)
         self._refresh()
+
+    def focus_session(self, display: Display) -> bool:
+        """Bring the terminal of the session the pet is showing to the front."""
+        info = self.tracker.terminal_for(display.session_id)
+        if info is None:
+            log.info("no terminal known for session %s", display.session_id)
+            return False
+        log.info("focusing terminal %s %s", info.get("app", "?"), info.get("tty", ""))
+        return focus.focus_terminal(info)
 
     def _on_tick(self) -> None:
         if self.tracker.tick():
@@ -171,6 +180,7 @@ def run(initial_event: dict[str, Any] | None = None, verbose: bool = False) -> i
     window.sound_settings_changed.connect(player.apply_settings)
     window.test_sound_requested.connect(lambda: player.play("done", force=True))
     window.quit_requested.connect(app.quit)
+    window.clicked.connect(controller.focus_session)
     window.set_display(controller.display)
     window.show()
 

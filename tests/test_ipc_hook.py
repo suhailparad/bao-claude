@@ -96,3 +96,10 @@ def test_hook_process_is_silent_fast_and_exits_zero(pet_home, stdin):
     assert proc.returncode == 0
     assert proc.stdout == ""
     assert elapsed < 1.0  # includes interpreter startup; the hook itself must stay tiny
+
+
+def test_build_message_adds_terminal_only_for_some_events(monkeypatch):
+    monkeypatch.setattr(hook, "terminal_info", lambda: {"app": "com.apple.Terminal"})
+    msg = hook.build_message({"hook_event_name": "UserPromptSubmit", "session_id": "s"})
+    assert msg["terminal"] == {"app": "com.apple.Terminal"}
+    assert "terminal" not in hook.build_message({"hook_event_name": "PreToolUse"})
