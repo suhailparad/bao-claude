@@ -81,6 +81,7 @@ class Timings:
     sleep_after: float = 300.0  # idle/waiting with no events → sleeping
     stale_busy_after: float = 900.0  # thinking/working with no events → idle (interrupted?)
     forget_after: float = 6 * 3600.0  # drop sessions whose SessionEnd never arrived
+    permission_reminder: float = 60.0  # unanswered permission → remind once (0 = never)
 
 
 @dataclass
@@ -91,6 +92,7 @@ class Session:
     variant: str | None
     last_event_at: float
     state_since: float
+    reminded: bool = False  # the reminder for the current state was given
 
 
 @dataclass(frozen=True)
@@ -200,6 +202,7 @@ class SessionTracker:
             session.state = state
             session.variant = variant
             session.state_since = now
+            session.reminded = False
 
     # -- time -----------------------------------------------------------------------------
 
@@ -230,6 +233,23 @@ class SessionTracker:
                 self._set(s, new, None, now)
                 changed = True
         return changed
+
+    def due_reminders(self, now: float | None = None) -> list[str]:
+        """Sessions whose permission request has gone unanswered too long (each reported once)."""
+        now = time.time() if now is None else now
+        after = self.timings.permission_reminder
+        if after <= 0:
+            return []
+        due = []
+        for s in self.sessions.values():
+            if (
+                s.state is State.NEEDS_PERMISSION
+                and not s.reminded
+                and now - s.state_since >= after
+            ):
+                s.reminded = True
+                due.append(s.session_id)
+        return due
 
     # -- output ---------------------------------------------------------------------------
 

@@ -49,6 +49,9 @@ quits about 15 minutes after the last session ends.
 | compacting the conversation | squishes down, with sparkles | – |
 | ending the session | falls asleep | bye |
 
+If a permission request goes unanswered for a minute, the pet shakes and plays the alert
+once more (turn this off in the right-click menu, or set `permission_reminder_seconds`).
+
 With several Claude Code sessions open there's still one pet. It shows the most
 urgent state (permission first, then waiting, then done, and so on), and the speech
 bubble names the project it's about.
@@ -72,7 +75,7 @@ python -m bao uninstall-hooks  # remove bao's hooks from Claude Code
 ```
 
 Settings live in `~/.bao/config.json` (character, scale, muted, volume, muted_cues,
-show_bubble, quit_after_minutes, position) and the log in `~/.bao/pet.log`.
+show_bubble, permission_reminder_seconds, quit_after_minutes, position) and the log in `~/.bao/pet.log`.
 
 ## Make your own character
 

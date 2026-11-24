@@ -107,3 +107,20 @@ def test_needs_permission_never_sleeps():
     t.apply(ev("Notification", notification_type="permission_prompt"), now=0)
     t.tick(now=5000)
     assert t.resolve().state is State.NEEDS_PERMISSION
+
+
+def test_permission_reminder_fires_once_per_request():
+    t = SessionTracker(Timings(permission_reminder=60, sleep_after=1e9, forget_after=1e9))
+    t.apply(ev("Notification", notification_type="permission_prompt"), now=0)
+    assert t.due_reminders(now=59) == []
+    assert t.due_reminders(now=60) == ["a"]
+    assert t.due_reminders(now=500) == []  # only once
+    t.apply(ev("PostToolUse"), now=501)  # answered
+    t.apply(ev("Notification", notification_type="permission_prompt"), now=502)
+    assert t.due_reminders(now=562) == ["a"]  # a new request gets its own reminder
+
+
+def test_permission_reminder_off():
+    t = SessionTracker(Timings(permission_reminder=0))
+    t.apply(ev("Notification", notification_type="permission_prompt"), now=0)
+    assert t.due_reminders(now=10_000) == []
