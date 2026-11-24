@@ -2,11 +2,13 @@
 
     python tools/gen_sounds.py                    # panda chimes -> bao/characters/panda/sounds/
     python tools/gen_sounds.py --character cat    # cat meows    -> bao/characters/cat/sounds/
+    python tools/gen_sounds.py --character penguin  # penguin peeps -> characters/penguin/sounds/
     python tools/gen_sounds.py --play done        # also plays one (macOS afplay)
 
 Panda: soft marimba/bell-like tones (a few decaying partials per note).
 Cat: synthesized meows, chirps and a purr (a harmonic voice whose pitch glides while
-formants move from "ee" to "oo"). Updates the "sounds" section of the character's
+formants move from "ee" to "oo"). Penguin: the same voice, pitched up and buzzier: quick
+peeps, raspy squawks and a little bray. Updates the "sounds" section of the character's
 manifest.json.
 """
 
@@ -191,6 +193,80 @@ CAT_CUES: dict[str, dict] = {
 }
 
 
+def _peep(start: float, dur: float, lo: float, hi: float, gain: float = 1.0, **extra) -> dict:
+    """A short nasal penguin peep that jumps up from ``lo`` to ``hi``."""
+    return {
+        "start": start,
+        "dur": dur,
+        "gain": gain,
+        "pitch": [(0, lo), (0.3, hi), (1, hi * 0.94)],
+        "vowel": [(0, "e"), (0.4, "a"), (1, "e")],
+        **extra,
+    }
+
+
+BUZZ = (58, 0.45)  # fast amplitude ripple: the raspy edge of a penguin call
+
+PENGUIN_CUES: dict[str, dict] = {
+    # "pip-pip!": two quick rising peeps
+    "hello": {"calls": [_peep(0.0, 0.11, 900, 1250), _peep(0.15, 0.16, 1000, 1450)]},
+    # one soft peep that lifts at the end, like a question
+    "waiting": {
+        "calls": [
+            {
+                "start": 0.0,
+                "dur": 0.36,
+                "gain": 1.0,
+                "pitch": [(0, 880), (0.6, 840), (1, 1180)],
+                "vowel": [(0, "e"), (0.6, "a"), (1, "i")],
+            }
+        ],
+        "peak": 0.42,
+    },
+    # three raspy, insistent squawks
+    "alert": {
+        "calls": [_peep(i * 0.17, 0.13, 760, 1050, trill=BUZZ) for i in range(3)],
+        "peak": 0.6,
+    },
+    # happy bray: honks that climb, then a long buzzy "aaah"
+    "done": {
+        "calls": [
+            _peep(0.0, 0.1, 620, 760, 0.8, trill=BUZZ),
+            _peep(0.13, 0.1, 700, 860, 0.85, trill=BUZZ),
+            _peep(0.26, 0.1, 780, 960, 0.9, trill=BUZZ),
+            {
+                "start": 0.4,
+                "dur": 0.55,
+                "gain": 1.0,
+                "trill": (46, 0.35),
+                "pitch": [(0, 900), (0.25, 1120), (1, 860)],
+                "vowel": [(0, "e"), (0.3, "a"), (1, "o")],
+            },
+        ],
+    },
+    # two drowsy, falling peeps
+    "bye": {
+        "calls": [
+            {
+                "start": 0.0,
+                "dur": 0.3,
+                "gain": 1.0,
+                "pitch": [(0, 1100), (1, 820)],
+                "vowel": [(0, "e"), (1, "a")],
+            },
+            {
+                "start": 0.36,
+                "dur": 0.5,
+                "gain": 0.85,
+                "pitch": [(0, 900), (1, 560)],
+                "vowel": [(0, "a"), (0.6, "o"), (1, "u")],
+            },
+        ],
+        "peak": 0.5,
+    },
+}
+
+
 def _lerp_points(points: list, x: float):
     """Piecewise-linear lookup in [(frac, value)], values being floats or float tuples."""
     if x <= points[0][0]:
@@ -275,12 +351,14 @@ def synth_cat(spec: dict, seed: int) -> list[float]:
     return [x / m * peak for x in buf]
 
 
-VOICES = {"panda": "chime", "cat": "cat"}
+VOICES = {"panda": "chime", "cat": "cat", "penguin": "penguin"}
 
 
 def render(voice: str, name: str) -> list[float]:
     if voice == "cat":
         return synth_cat(CAT_CUES[name], seed=sum(map(ord, name)))
+    if voice == "penguin":  # same voice model as the cat, different calls
+        return synth_cat(PENGUIN_CUES[name], seed=sum(map(ord, name)) + 1)
     spec = CUES[name]
     return synth(spec["notes"], spec["decay"])
 

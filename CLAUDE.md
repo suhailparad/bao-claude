@@ -103,10 +103,12 @@ bao/
   installer.py       # merge/remove hooks in ~/.claude/settings.json (with backup)
   characters/panda/  # default character
   characters/cat/    # ginger tabby (same poses/props as the panda)
+  characters/penguin/ # penguin with flippers for arms (same poses/props as the panda)
 tools/
   gen_panda.py       # draws placeholder panda frames with QPainter (poses, props, generate())
   gen_cat.py         # draws the cat with the panda's poses/props
-  gen_sounds.py      # synthesizes .wav cues: panda chimes, cat meows/purr
+  gen_penguin.py     # draws the penguin with the panda's poses/props
+  gen_sounds.py      # synthesizes .wav cues: panda chimes, cat meows/purr, penguin peeps/squawks
 tests/
 ```
 
@@ -128,7 +130,8 @@ python -m bao doctor                      # check characters, config, hooks, run
 
 python tools/gen_panda.py                 # regenerate panda frames
 python tools/gen_cat.py                   # regenerate cat frames
-python tools/gen_sounds.py                # regenerate panda chimes (--character cat: cat meows)
+python tools/gen_penguin.py               # regenerate penguin frames
+python tools/gen_sounds.py                # regenerate panda chimes (--character cat | penguin)
 pytest
 ```
 
@@ -146,8 +149,9 @@ pytest
 - The app takes ~1.5 s to start (Qt import). The hook passes the event that triggered a launch via
   `run --initial-event`, so nothing is lost. Scripts that drive the app must wait for `pet.sock` to exist.
 - Tests set `BAO_HOME` to a short dir under `/tmp`, because macOS limits Unix socket paths to ~104 bytes.
-- The panda PNGs are generated: edit `tools/gen_panda.py`, never the PNGs by hand
+- The character PNGs are generated: edit `tools/gen_<id>.py`, never the PNGs by hand
   (`--sheet out.png` writes a contact sheet so you can review every frame at once).
+  A `QPainterPath` of overlapping shapes needs `setFillRule(Qt.WindingFill)`, or the overlaps become holes.
 - To check UI changes visually, render off-screen (`QT_QPA_PLATFORM=offscreen`, `PetWindow.grab()`).
   `screencapture` from a terminal without Screen Recording permission shows only the wallpaper.
 - Keep black art readable on dark desktops: black shapes get a grey edge (`FUR_EDGE`).
