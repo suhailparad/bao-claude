@@ -102,7 +102,7 @@ class PetWindow(QWidget):
         self.setAttribute(Qt.WA_TranslucentBackground)
         self.setAttribute(Qt.WA_ShowWithoutActivating)
         self.setAttribute(Qt.WA_MacAlwaysShowToolWindow)
-        self.setWindowTitle("Claude Pet")
+        self.setWindowTitle("Bao")
 
         self.config = config
         self.characters = characters
@@ -559,7 +559,7 @@ class PetWindow(QWidget):
         menu.addAction(bubble)
 
         menu.addSeparator()
-        menu.addAction("Quit Claude Pet", self.quit_requested.emit)
+        menu.addAction("Quit Bao", self.quit_requested.emit)
         return menu
 
     def _set_scale(self, scale: float) -> None:

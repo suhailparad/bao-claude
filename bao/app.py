@@ -10,9 +10,9 @@ import time
 from typing import Any
 
 from PySide6.QtCore import QObject, QTimer, Signal
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QMessageBox
 
-from . import focus, platform_mac
+from . import focus, installer, platform_mac
 from .character import discover_characters
 from .config import Config
 from .ipc import EventServer, InstanceLock, send_message
@@ -165,7 +165,59 @@ def setup_logging(verbose: bool = False) -> None:
         root.addHandler(sh)
 
 
-def run(initial_event: dict[str, Any] | None = None, verbose: bool = False) -> int:
+def offer_hook_setup(parent: Any = None) -> None:
+    """Ask to (re)connect Claude Code's hooks to this copy of bao, if they need it."""
+    try:
+        reason = installer.setup_needed()
+    except installer.SettingsError as exc:
+        log.warning("cannot check Claude Code hooks: %s", exc)
+        return
+    if reason is None:
+        return
+    if reason == "missing":
+        text = "Connect Bao to Claude Code?"
+        info = (
+            "Bao adds a few hooks to ~/.claude/settings.json so it can follow your "
+            "Claude Code sessions. Your other settings are kept, and a backup is saved "
+            "as settings.json.bak."
+        )
+    else:
+        text = "Point Claude Code at this copy of Bao?"
+        info = (
+            "Claude Code's hooks run a different copy of Bao (maybe the app was moved). "
+            "Update them to use this one? A backup is saved as settings.json.bak."
+        )
+    platform_mac.bring_to_front()
+    box = QMessageBox(parent)
+    box.setWindowTitle("Bao")
+    box.setText(text)
+    box.setInformativeText(info)
+    connect = box.addButton("Connect", QMessageBox.ButtonRole.AcceptRole)
+    box.addButton("Not Now", QMessageBox.ButtonRole.RejectRole)
+    box.setDefaultButton(connect)
+    box.exec()
+    if box.clickedButton() is not connect:
+        log.info("hook setup declined (%s)", reason)
+        return
+    try:
+        res = installer.install()
+    except (installer.SettingsError, OSError) as exc:
+        log.error("hook setup failed: %s", exc)
+        QMessageBox.warning(parent, "Bao", f"Could not update Claude Code settings:\n{exc}")
+        return
+    log.info("installed hooks in %s: %s", res.path, res.command)
+    QMessageBox.information(
+        parent,
+        "Bao",
+        "All set! Bao will appear whenever you start a new Claude Code session.",
+    )
+
+
+def run(
+    initial_event: dict[str, Any] | None = None,
+    verbose: bool = False,
+    offer_setup: bool = False,
+) -> int:
     setup_logging(verbose)
     lock = InstanceLock()
     if not lock.acquire():
@@ -178,7 +230,7 @@ def run(initial_event: dict[str, Any] | None = None, verbose: bool = False) -> i
         return 0
 
     app = QApplication(sys.argv[:1])
-    app.setApplicationName("Claude Pet")
+    app.setApplicationName("Bao")
     app.setQuitOnLastWindowClosed(False)
     platform_mac.hide_dock_icon()
 
@@ -227,13 +279,19 @@ def run(initial_event: dict[str, Any] | None = None, verbose: bool = False) -> i
         controller.apply(initial_event)
 
     # Let Ctrl+C quit: Python only handles signals when the interpreter gets control.
-    signal.signal(signal.SIGINT, lambda *_: app.quit())
-    signal.signal(signal.SIGTERM, lambda *_: app.quit())
+    def on_signal(signum: int, _frame: Any) -> None:
+        log.info("quitting on %s", signal.Signals(signum).name)
+        app.quit()
+
+    signal.signal(signal.SIGINT, on_signal)
+    signal.signal(signal.SIGTERM, on_signal)
     wake = QTimer()
     wake.start(200)
     wake.timeout.connect(lambda: None)
 
     log.info("bao started")
+    if offer_setup:
+        QTimer.singleShot(400, offer_hook_setup)
     try:
         return app.exec()
     finally:

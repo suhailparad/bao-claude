@@ -14,6 +14,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=8", "ruff>=0.5"]
+app = ["pyinstaller>=6"]  # build Bao.app: packaging/build_mac.sh
 
 [project.scripts]
 bao = "bao.__main__:main"

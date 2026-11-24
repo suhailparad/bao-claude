@@ -24,6 +24,18 @@ def hide_dock_icon() -> None:
         log.info("could not hide Dock icon: %s", exc)
 
 
+def bring_to_front() -> None:
+    """Activate the (Dock-less) app so a dialog shows above other apps' windows."""
+    if not IS_MAC:
+        return
+    try:
+        from AppKit import NSApplication
+
+        NSApplication.sharedApplication().activateIgnoringOtherApps_(True)
+    except Exception as exc:
+        log.info("could not activate app: %s", exc)
+
+
 def float_on_all_spaces(win_id: int) -> None:
     """Keep the pet visible on every Space and above full-screen apps."""
     if not IS_MAC:

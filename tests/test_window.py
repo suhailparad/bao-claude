@@ -64,7 +64,7 @@ def test_scale_menu_and_config(window, pet_home):
     assert window.height() > 214 and window.width() > w0
     assert Config.load().scale == 1.4
     titles = [a.text() for a in window.build_menu().actions()]
-    assert {"Character", "Size", "Sound", "Show speech bubble", "Quit Claude Pet"} <= set(titles)
+    assert {"Character", "Size", "Sound", "Show speech bubble", "Quit Bao"} <= set(titles)
 
 
 def test_unknown_character_falls_back(qapp, pet_home):
