@@ -24,7 +24,7 @@ from PySide6.QtWidgets import QMenu, QWidget
 
 from . import platform_mac
 from .character import Animation, Character
-from .config import Config
+from .config import DEFAULT_CHARACTER, Config
 from .sessions import Display, State
 from .sound import CUE_LABELS
 
@@ -109,7 +109,7 @@ class PetWindow(QWidget):
     def _pick_character(self, cid: str) -> Character:
         if cid in self.characters:
             return self.characters[cid]
-        fallback = next(iter(self.characters.values()))
+        fallback = self.characters.get(DEFAULT_CHARACTER) or next(iter(self.characters.values()))
         log.warning("character %r not found, using %r", cid, fallback.id)
         return fallback
 

@@ -97,8 +97,10 @@ bao/
   config.py          # ~/.bao/config.json (character, scale, muted, volume, muted_cues, show_bubble, position)
   installer.py       # merge/remove hooks in ~/.claude/settings.json (with backup)
   characters/panda/  # default character
+  characters/cat/    # ginger tabby (same poses/props as the panda)
 tools/
-  gen_panda.py       # draws placeholder panda frames with QPainter
+  gen_panda.py       # draws placeholder panda frames with QPainter (poses, props, generate())
+  gen_cat.py         # draws the cat with the panda's poses/props
   gen_sounds.py      # synthesizes .wav chimes
 tests/
 ```
@@ -119,7 +121,8 @@ python -m bao uninstall-hooks             # both accept --settings PATH (use a c
 python -m bao doctor                      # check characters, config, hooks, running app
 
 python tools/gen_panda.py                 # regenerate panda frames
-python tools/gen_sounds.py                # regenerate sounds
+python tools/gen_cat.py                   # regenerate cat frames
+python tools/gen_sounds.py                # regenerate sounds (--out bao/characters/cat for the cat)
 pytest
 ```
 

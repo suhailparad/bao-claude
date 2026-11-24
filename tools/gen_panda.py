@@ -585,39 +585,45 @@ ANIMATIONS: dict[str, tuple[float, bool, int, Callable[[float, int], Pose]]] = {
 }
 
 
-def render_frame(pose: Pose, t: float) -> QImage:
+Drawer = Callable[[QPainter, Pose, float], None]
+
+
+def render_frame(pose: Pose, t: float, draw: Drawer | None = None) -> QImage:
     img = QImage(SIZE * RENDER_SCALE, SIZE * RENDER_SCALE, QImage.Format_ARGB32_Premultiplied)
     img.fill(Qt.transparent)
     p = QPainter(img)
     p.scale(RENDER_SCALE, RENDER_SCALE)
-    draw_panda(p, pose, t)
+    (draw or draw_panda)(p, pose, t)
     p.end()
     return img
 
 
-def generate(out: Path) -> dict[str, list[QImage]]:
+def generate(
+    out: Path, draw: Drawer | None = None, char_id: str = "panda", name: str = "Panda"
+) -> dict[str, list[QImage]]:
+    """Render every animation with ``draw`` and (re)write ``out``'s frames + manifest."""
     frames_root = out / "frames"
     if frames_root.exists():
         shutil.rmtree(frames_root)
     states = {}
     rendered: dict[str, list[QImage]] = {}
-    for name, (fps, loop, count, fn) in ANIMATIONS.items():
-        d = frames_root / name
+    for state, (fps, loop, count, fn) in ANIMATIONS.items():
+        d = frames_root / state
         d.mkdir(parents=True)
         imgs = []
         for i in range(count):
             t = i / count
-            img = render_frame(fn(t, i), t)
+            img = render_frame(fn(t, i), t, draw)
             img.save(str(d / f"{i:03d}.png"))
             imgs.append(img)
-        rendered[name] = imgs
-        states[name] = {"frames": f"frames/{name}", "fps": fps, "loop": loop}
+        rendered[state] = imgs
+        states[state] = {"frames": f"frames/{state}", "fps": fps, "loop": loop}
 
     manifest_path = out / "manifest.json"
     old = json.loads(manifest_path.read_text()) if manifest_path.exists() else {}
     manifest = {
-        "id": "panda",
-        "name": "Panda",
+        "id": char_id,
+        "name": name,
         "version": 1,
         "author": "bao",
         "size": [SIZE, SIZE],

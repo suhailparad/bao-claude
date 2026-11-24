@@ -33,12 +33,16 @@ def make_char(root: Path, cid="cat", states=None, **extra) -> Path:
     return d
 
 
-def test_builtin_panda_covers_every_state():
-    panda = load_character(BUILTIN_DIR / "panda")
+@pytest.mark.parametrize("cid", ["panda", "cat"])
+def test_builtin_character_covers_every_state(cid):
+    ch = load_character(BUILTIN_DIR / cid)
+    assert ch.id == cid
     for s in State:
-        assert s.value in panda.animations, s
+        assert s.value in ch.animations, s
     for variant in ("reading", "typing", "running"):
-        assert panda.animation_for("working", variant).name == variant
+        assert ch.animation_for("working", variant).name == variant
+    for cue in ("hello", "waiting", "alert", "done", "bye"):
+        assert ch.sound_for(cue), cue
 
 
 def test_fallbacks(tmp_path):

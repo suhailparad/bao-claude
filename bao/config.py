@@ -14,9 +14,12 @@ from .paths import config_path
 log = logging.getLogger(__name__)
 
 
+DEFAULT_CHARACTER = "panda"
+
+
 @dataclass
 class Config:
-    character: str = "panda"
+    character: str = DEFAULT_CHARACTER
     scale: float = 1.0
     muted: bool = False
     volume: float = 0.7
