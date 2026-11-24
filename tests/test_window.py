@@ -92,3 +92,10 @@ def test_auto_quit_after_last_session(qapp):
     c._check_auto_quit(1062)
     c._check_auto_quit(1100)
     assert fired == [1]  # once
+
+
+def test_bubble_shows_how_long_the_turn_took(window):
+    window.set_display(Display(State.WAITING, None, "Waiting for you", "proj", "s", 2, 252))
+    assert window._bubble_lines() == ("Waiting for you", "proj · took 4m 12s · 2 sessions")
+    window.set_display(Display(State.DONE, None, "Done in 4m 12s!", None, "s", 1, 252))
+    assert window._bubble_lines() == ("Done in 4m 12s!", "")

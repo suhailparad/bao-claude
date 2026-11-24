@@ -49,6 +49,9 @@ quits about 15 minutes after the last session ends.
 | compacting the conversation | squishes down, with sparkles | – |
 | ending the session | falls asleep | bye |
 
+When Claude finishes, the bubble says how long the turn took ("Done in 4m 12s!", then
+"took 4m 12s" while it waits for you), so you know at a glance whether it's worth looking.
+
 With several Claude Code sessions open there's still one pet. It shows the most
 urgent state (permission first, then waiting, then done, and so on), and the speech
 bubble names the project it's about.

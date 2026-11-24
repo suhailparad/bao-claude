@@ -107,3 +107,36 @@ def test_needs_permission_never_sleeps():
     t.apply(ev("Notification", notification_type="permission_prompt"), now=0)
     t.tick(now=5000)
     assert t.resolve().state is State.NEEDS_PERMISSION
+
+
+def test_format_duration():
+    from bao.sessions import format_duration
+
+    assert format_duration(0.4) == "0s"
+    assert format_duration(42) == "42s"
+    assert format_duration(252) == "4m 12s"
+    assert format_duration(3600 + 5 * 60 + 9) == "1h 05m"
+
+
+def test_done_shows_turn_duration():
+    t = SessionTracker(Timings(done_seconds=3))
+    t.apply(ev("UserPromptSubmit"), now=100)
+    t.apply(ev("PreToolUse", tool_name="Bash"), now=150)
+    assert t.resolve().duration is None  # still working
+    t.apply(ev("Stop"), now=352)
+    d = t.resolve()
+    assert (d.text, d.duration) == ("Done in 4m 12s!", 252)
+    t.tick(now=356)
+    d = t.resolve()
+    assert d.state is State.WAITING and d.duration == 252 and d.text == "Waiting for you"
+    t.apply(ev("UserPromptSubmit"), now=400)
+    assert t.resolve().duration is None
+    assert t.snapshot()[0]["last_turn_seconds"] is None
+
+
+def test_stop_without_prompt_has_no_duration():
+    t = SessionTracker()
+    t.apply(ev("PreToolUse", tool_name="Read"), now=0)  # pet started mid-turn
+    t.apply(ev("Stop"), now=10)
+    d = t.resolve()
+    assert d.duration is None and d.text == "All done!"

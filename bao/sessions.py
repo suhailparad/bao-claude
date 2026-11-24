@@ -91,6 +91,8 @@ class Session:
     variant: str | None
     last_event_at: float
     state_since: float
+    turn_started_at: float | None = None  # UserPromptSubmit of the current turn
+    last_turn_seconds: float | None = None  # how long the last finished turn took
 
 
 @dataclass(frozen=True)
@@ -101,6 +103,7 @@ class Display:
     project: str | None
     session_id: str | None
     session_count: int
+    duration: float | None = None  # seconds the last turn took (done / waiting only)
 
     def to_dict(self) -> dict[str, Any]:
         d = asdict(self)
@@ -125,7 +128,19 @@ def classify_notification(msg: dict[str, Any]) -> State | None:
     return State.WAITING
 
 
-def state_text(state: State, variant: str | None) -> str:
+def format_duration(seconds: float) -> str:
+    """42s, 4m 12s, 1h 05m."""
+    s = max(0, round(seconds))
+    if s < 60:
+        return f"{s}s"
+    if s < 3600:
+        return f"{s // 60}m {s % 60:02d}s"
+    return f"{s // 3600}h {s % 3600 // 60:02d}m"
+
+
+def state_text(state: State, variant: str | None, duration: float | None = None) -> str:
+    if state is State.DONE and duration is not None:
+        return f"Done in {format_duration(duration)}!"
     if state is State.WORKING and variant in VARIANT_TEXT:
         return VARIANT_TEXT[variant]
     return STATE_TEXT[state]
@@ -174,6 +189,8 @@ class SessionTracker:
                 cues.append("hello")
         elif event == "UserPromptSubmit":
             self._set(session, State.THINKING, None, now)
+            session.turn_started_at = now
+            session.last_turn_seconds = None
         elif event == "PreToolUse":
             self._set(session, State.WORKING, tool_variant(msg.get("tool_name")), now)
         elif event in ("PostToolUse", "PostToolUseFailure"):
@@ -188,6 +205,9 @@ class SessionTracker:
                 cues.append("waiting")
         elif event == "Stop":
             self._set(session, State.DONE, None, now)
+            if session.turn_started_at is not None:
+                session.last_turn_seconds = now - session.turn_started_at
+                session.turn_started_at = None
             cues.append("done")
         elif event == "PreCompact":
             self._set(session, State.COMPACTING, None, now)
@@ -237,13 +257,15 @@ class SessionTracker:
         if not self.sessions:
             return Display(State.SLEEPING, None, STATE_TEXT[State.SLEEPING], None, None, 0)
         best = max(self.sessions.values(), key=lambda s: (PRIORITY[s.state], s.last_event_at))
+        duration = best.last_turn_seconds if best.state in (State.DONE, State.WAITING) else None
         return Display(
             state=best.state,
             variant=best.variant,
-            text=state_text(best.state, best.variant),
+            text=state_text(best.state, best.variant, duration),
             project=best.project or None,
             session_id=best.session_id,
             session_count=len(self.sessions),
+            duration=duration,
         )
 
     def snapshot(self) -> list[dict[str, Any]]:
@@ -254,6 +276,7 @@ class SessionTracker:
                 "state": s.state.value,
                 "variant": s.variant,
                 "last_event_at": s.last_event_at,
+                "last_turn_seconds": s.last_turn_seconds,
             }
             for s in self.sessions.values()
         ]
