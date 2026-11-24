@@ -18,11 +18,24 @@ You can add your own without touching any code.
 
 ## Install the app
 
+**With Homebrew** (Apple silicon):
+
+```bash
+brew install --cask suhailparad/bao/bao
+open -a Bao          # click Connect to link it to Claude Code
+```
+
+This also puts the `bao` command on your PATH. `brew upgrade` updates it, and
+`brew uninstall bao` removes the app and its Claude Code hooks (`--zap` also deletes `~/.bao`).
+
+**Or by hand:**
+
 1. Download `Bao-<version>-<arch>.dmg` (`arm64` for Apple silicon, `x86_64` for Intel Macs),
    open it and drag **Bao** into **Applications**.
 2. Open Bao from Applications. The app isn't notarized by Apple yet, so the first time
-   macOS says it can't check it: **right-click Bao → Open → Open** (on macOS 13 and later,
-   if there's no Open button: *System Settings → Privacy & Security → Open Anyway*).
+   macOS says it can't check it. On macOS 14 and earlier: **right-click Bao → Open → Open**.
+   On macOS 15 and later: try to open it once, then *System Settings → Privacy & Security →
+   Open Anyway*. Or, in Terminal: `xattr -dr com.apple.quarantine /Applications/Bao.app`.
 3. Bao asks to **connect to Claude Code**. Click *Connect*: it adds its hooks to
    `~/.claude/settings.json`, keeps everything else and saves a backup as
    `settings.json.bak`.
