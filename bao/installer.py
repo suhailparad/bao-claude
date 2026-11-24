@@ -44,9 +44,18 @@ def default_settings_path() -> Path:
     return (Path(base) if base else Path.home() / ".claude") / "settings.json"
 
 
+def hook_python() -> str:
+    """The executable that runs the hook: the venv's python, or Bao.app's fast helper."""
+    if getattr(sys, "frozen", False):
+        helper = Path(sys.executable).with_name("bao-hook")  # see bao.bundle.hook_main
+        if helper.exists():
+            return str(helper)
+    return sys.executable
+
+
 def hook_command(python: str | None = None) -> str:
     # Keep the venv path as-is (don't resolve symlinks: that would lose the venv).
-    return f"{shlex.quote(python or sys.executable)} -I -m {HOOK_MARKER}"
+    return f"{shlex.quote(python or hook_python())} -I -m {HOOK_MARKER}"
 
 
 def _is_ours(hook: Any) -> bool:
@@ -173,3 +182,18 @@ def status(path: Path | None = None) -> HookStatus:
                 if _is_ours(h):
                     st.installed.setdefault(event, []).append(str(h["command"]))
     return st
+
+
+def setup_needed(path: Path | None = None, python: str | None = None) -> str | None:
+    """Why the hooks should be (re)installed for this copy of bao, or None if they're fine.
+
+    ``"missing"``: no hooks, or some events lack them. ``"elsewhere"``: they run another
+    Python/app (e.g. Bao.app was moved, or they point at a dev venv).
+    """
+    st = status(path)
+    if not st.installed or st.missing:
+        return "missing"
+    command = hook_command(python)
+    if any(c != command for cmds in st.installed.values() for c in cmds):
+        return "elsewhere"
+    return None

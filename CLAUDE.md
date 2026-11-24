@@ -107,7 +107,8 @@ bao/
   sound.py           # SoundPlayer: .wav → QSoundEffect, system:/aiff/mp3 → afplay; mute, volume, per-cue off, DND/quiet hours, 1.5 s repeat guard
   config.py          # ~/.bao/config.json (character, scale, muted, volume, muted_cues, show_bubble, permission_reminder_seconds,
                      #   do_not_disturb, quiet_hours, roam, position)
-  installer.py       # merge/remove hooks in ~/.claude/settings.json (with backup)
+  installer.py       # merge/remove hooks in ~/.claude/settings.json (with backup); setup_needed()
+  bundle.py          # Bao.app entry points: argv dispatch (python-like -m/-c) + Qt-free bao-hook helper
   characters/panda/  # default character
   characters/cat/    # ginger tabby (same poses/props as the panda)
   characters/penguin/ # penguin with flippers for arms (same poses/props as the panda)
@@ -117,8 +118,13 @@ tools/
   gen_cat.py         # draws the cat with the panda's poses/props
   gen_penguin.py     # draws the penguin with the panda's poses/props
   gen_hummingbird.py # draws the hummingbird with the panda's poses/props
+  gen_icon.py        # draws the panda app icon → packaging/Bao.icns
   gen_sounds.py      # synthesizes .wav cues: panda chimes, cat meows/purr, penguin peeps/squawks,
                      #   hummingbird chirps/wing hum
+packaging/
+  bao.spec           # PyInstaller: Bao.app with Contents/MacOS/Bao (Qt) + bao-hook (no Qt)
+  build_mac.sh       # build dist/Bao.app + DMG, with a smoke test
+  bao_app.py, bao_hook.py  # entry scripts (logic lives in bao/bundle.py)
 tests/
 ```
 
@@ -142,6 +148,8 @@ python tools/gen_panda.py                 # regenerate panda frames
 python tools/gen_cat.py                   # regenerate cat frames
 python tools/gen_penguin.py               # regenerate penguin frames
 python tools/gen_hummingbird.py           # regenerate hummingbird frames
+python tools/gen_icon.py                  # regenerate packaging/Bao.icns
+packaging/build_mac.sh                    # build dist/Bao.app + .dmg (pip install -e ".[app]")
 python tools/gen_sounds.py                # regenerate panda chimes (--character cat | penguin | hummingbird)
 pytest
 ```
@@ -154,6 +162,11 @@ pytest
 - Hook commands use the venv's absolute python path (not symlink-resolved) with `-I`, so they work
   from any cwd and a project's own files can't shadow our modules. Moving the venv → re-run install-hooks.
 - Never test the installer against the real `~/.claude/settings.json`: pass `--settings` with a copy.
+- Bao.app (PyInstaller): the `Bao` binary stands in for the venv python (`Bao -I -m bao run`,
+  `-c` probes), so code that re-runs `sys.executable` works frozen. Hooks use the sibling
+  `bao-hook` (Qt-free, ~60 ms vs ~150 ms); it execs `Bao` for anything but the hook.
+  A Finder launch (no args) offers to install/repair hooks (`installer.setup_needed`).
+  Anything imported lazily must be listed in `hiddenimports` in `packaging/bao.spec`.
 - The app quits `quit_after_minutes` (config, default 15, 0 = never) after the last session ends;
   the next SessionStart relaunches it. A manual `run` with no sessions never auto-quits.
 - Roaming moves the window but `position` always stores *home* (where the user dropped it);

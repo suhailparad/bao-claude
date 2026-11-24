@@ -40,6 +40,12 @@ Decisions: **PySide6**, **sprite-pack characters** (panda by default), **one pet
 - Optional menu-bar tray icon, launch at login (optional)
 - README with a "How to make a character" guide
 
+## Milestone 6: Installable Mac app ✅ (done 2026-11-24)
+- `Bao.app` + DMG built with PyInstaller (`packaging/build_mac.sh`), panda app icon, no Dock icon
+- First launch from Finder offers to connect (or re-point) Claude Code's hooks
+- Qt-free `bao-hook` helper inside the app keeps the hook at ~60 ms
+- Later: Developer ID signing + notarization, universal2 build, a Homebrew cask, GitHub release workflow
+
 ## Risks / notes
 - Hook latency: PreToolUse and PostToolUse fire on every tool call, so the hook must stay tiny (stdlib, no Qt import).
 - macOS: transparent windows over full-screen apps need `Qt.WindowStaysOnTopHint` + `Qt.Tool`. Test this on Monterey.
