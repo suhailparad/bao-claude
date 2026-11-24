@@ -92,3 +92,12 @@ def test_auto_quit_after_last_session(qapp):
     c._check_auto_quit(1062)
     c._check_auto_quit(1100)
     assert fired == [1]  # once
+
+
+def test_show_offscreen_does_not_touch_cocoa(window, monkeypatch):
+    import bao.platform_mac as pm
+
+    calls = []
+    monkeypatch.setattr(pm, "float_on_all_spaces", lambda wid: calls.append(wid))
+    window.show()  # used to segfault: winId() isn't an NSView off-screen
+    assert window.isVisible() and calls == []
