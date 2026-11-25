@@ -8,6 +8,13 @@ import pytest
 
 from bao import installer
 
+
+@pytest.fixture(autouse=True)
+def posix_hook_commands(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Expected commands below are POSIX-quoted; Windows quoting has its own test."""
+    monkeypatch.setattr(installer, "IS_WINDOWS", False)
+
+
 OTHER = {"type": "command", "command": "afplay /System/Library/Sounds/Glass.aiff"}
 
 

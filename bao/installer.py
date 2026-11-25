@@ -19,6 +19,7 @@ from typing import Any
 HOOK_MARKER = "bao.hook"
 # Commands from before the rename to bao; still recognised so install/uninstall replace them.
 LEGACY_MARKERS = ("claude_pet.hook",)
+IS_WINDOWS = sys.platform == "win32"
 HOOK_TIMEOUT = 5  # seconds; the hook normally finishes in ~40 ms
 
 # event -> matcher (None = event has no matcher)
@@ -61,7 +62,7 @@ def hook_command(python: str | None = None, windows: bool | None = None) -> str:
     and cmd.exe accept.
     """
     python = python or hook_python()
-    if sys.platform == "win32" if windows is None else windows:
+    if IS_WINDOWS if windows is None else windows:
         return f'"{python.replace(chr(92), "/")}" -I -m {HOOK_MARKER}'
     return f"{shlex.quote(python)} -I -m {HOOK_MARKER}"
 

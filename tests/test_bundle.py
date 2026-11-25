@@ -73,7 +73,7 @@ def test_hook_python_uses_helper_when_frozen(monkeypatch, tmp_path):
     assert installer.hook_python() == str(macos / "Bao")  # no helper: fall back to the app
     (macos / "bao-hook").touch()
     assert installer.hook_python() == str(macos / "bao-hook")
-    assert installer.hook_command() == f"{macos / 'bao-hook'} -I -m bao.hook"
+    assert installer.hook_command() == installer.hook_command(str(macos / "bao-hook"))
 
 
 def test_hook_python_is_sys_executable_when_not_frozen(monkeypatch):

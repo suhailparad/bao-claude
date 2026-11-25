@@ -16,7 +16,7 @@ def test_terminal_info_finds_a_tty_quickly():
     t = time.monotonic()
     info = focus.terminal_info({})
     assert time.monotonic() - t < 0.2
-    assert set(info) <= {"app", "tty"}
+    assert set(info) <= {"app", "tty", "pids"}  # pids: Linux / Windows find the window by owner
 
 
 def test_focus_command_by_app():
@@ -115,6 +115,7 @@ def test_parse_wmctrl():
 
 def test_linux_focus_needs_a_tool(monkeypatch):
     monkeypatch.setattr(focus, "IS_MAC", False)
+    monkeypatch.setattr(focus, "IS_WINDOWS", False)
     monkeypatch.setattr(focus, "IS_LINUX", True)
     monkeypatch.setattr(focus.shutil, "which", lambda name: None)
     assert not focus.focus_terminal({"pids": [1234]})

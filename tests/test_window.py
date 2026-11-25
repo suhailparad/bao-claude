@@ -184,11 +184,14 @@ def test_wrap_text(qapp):
     f.setPixelSize(13)
     f.setBold(True)
     m = QFontMetricsF(f)
-    assert wrap_text("Bao is thinking…", m, 132, 2) == ["Bao is thinking…"]
+    # Widths are relative to the text, so the test doesn't depend on each OS's default font.
+    short = "Bao is thinking…"
+    assert wrap_text(short, m, m.horizontalAdvance(short) + 1, 2) == [short]
     for text in ("Bao needs your permission!", "Bao is waiting for you", "Bao finished in 4m 12s!"):
-        lines = wrap_text(text, m, 132, 2)
+        width = 0.75 * m.horizontalAdvance(text)
+        lines = wrap_text(text, m, width, 2)
         assert len(lines) == 2 and " ".join(lines) == text
-        assert all(m.horizontalAdvance(line) <= 132 for line in lines)
+        assert all(m.horizontalAdvance(line) <= width for line in lines)
         a, b = (m.horizontalAdvance(line) for line in lines)
         assert min(a, b) >= 0.5 * max(a, b)  # balanced: no lonely "you" on line two
     long = wrap_text("word " * 40, m, 132, 2)
