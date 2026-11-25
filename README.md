@@ -5,6 +5,8 @@ A small desktop pet that floats on your macOS desktop and shows, live, what
 running commands, waiting for you, asking for permission, or done. It plays a short
 sound on the important moments, so you can look away while Claude works.
 
+https://github.com/user-attachments/assets/4cb4add8-5b59-4418-be31-370bf4755566
+
 Four characters are built in: a **panda** (the default, with soft chimes), a
 **ginger cat** (with meows, chirps and a purr), a **penguin** (with peeps, squawks and a
 happy little bray) and a colourful **hummingbird** (with chirps, twitters and a wing hum).
