@@ -1,0 +1,11 @@
+{
+  "name": "bao",
+  "owner": { "name": "suhailparad" },
+  "plugins": [
+    {
+      "name": "bao",
+      "source": "./",
+      "description": "A desktop pet that shows live what Claude Code is doing."
+    }
+  ]
+}

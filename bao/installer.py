@@ -184,13 +184,26 @@ def status(path: Path | None = None) -> HookStatus:
     return st
 
 
+def plugin_hook_paths(config_dir: Path | None = None) -> list[Path]:
+    """Hook scripts of an installed bao Claude Code plugin (``hooks/bao-hook`` in its cache)."""
+    base = config_dir or default_settings_path().parent
+    plugins = base / "plugins"
+    if not plugins.is_dir():
+        return []
+    # cache/<marketplace>/<plugin>/<version>/hooks/bao-hook
+    return sorted(p for p in plugins.glob("cache/*/bao/*/hooks/bao-hook") if p.is_file())
+
+
 def setup_needed(path: Path | None = None, python: str | None = None) -> str | None:
     """Why the hooks should be (re)installed for this copy of bao, or None if they're fine.
 
     ``"missing"``: no hooks, or some events lack them. ``"elsewhere"``: they run another
-    Python/app (e.g. Bao.app was moved, or they point at a dev venv).
+    Python/app (e.g. Bao.app was moved, or they point at a dev venv). None too when
+    settings.json has none of ours but the bao Claude Code plugin provides them.
     """
     st = status(path)
+    if not st.installed and plugin_hook_paths(st.path.parent):
+        return None
     if not st.installed or st.missing:
         return "missing"
     command = hook_command(python)

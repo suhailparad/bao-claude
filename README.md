@@ -55,6 +55,28 @@ bao doctor          # bao status, bao dnd on, bao send thinking, ... as below
 **Uninstall.** Run `/Applications/Bao.app/Contents/MacOS/Bao uninstall-hooks`, quit the
 pet (right-click → Quit Bao), then delete Bao.app and `~/.bao`.
 
+## Install as a Claude Code plugin
+
+The plugin replaces the *Connect* / `install-hooks` step. Claude Code adds bao's hooks
+when you install it and removes them when you uninstall it, and `~/.claude/settings.json`
+is never edited. You still need the app (above, or from source below), because the
+plugin doesn't contain it.
+
+```
+/plugin marketplace add suhailparad/bao-claude
+/plugin install bao@bao
+```
+
+The plugin also adds a `pet` skill. Ask Claude things like "set up bao", "switch the
+pet to the penguin", "turn on quiet hours from 22:00 to 08:00" or "why isn't the panda
+reacting?".
+
+The plugin's hook finds bao in this order: `$BAO_PYTHON`, then the path in
+`~/.bao/runtime`, then `/Applications/Bao.app` or `~/Applications/Bao.app`. For a source
+install, point it at your venv with `echo "$PWD/.venv/bin/python" > ~/.bao/runtime`.
+If hooks from `install-hooks` / *Connect* are still in `settings.json`, the plugin stays
+quiet so events aren't sent twice. Run `bao uninstall-hooks` to hand over to the plugin.
+
 ## Install from source
 
 ```bash

@@ -1,4 +1,6 @@
 import json
+import subprocess
+from pathlib import Path
 
 import pytest
 
@@ -106,3 +108,28 @@ def test_install_replaces_pre_rename_hooks(tmp_path):
     assert res.removed == 1
     cmds = [h["command"] for g in read(path)["hooks"]["Stop"] for h in g["hooks"]]
     assert sorted(cmds) == sorted([OTHER["command"], "/venv/bin/python -I -m bao.hook"])
+
+
+def _fake_plugin(config_dir: Path) -> Path:
+    hook = config_dir / "plugins/cache/bao/bao/0.1.0/hooks/bao-hook"
+    hook.parent.mkdir(parents=True)
+    hook.write_text("#!/bin/sh\n")
+    return hook
+
+
+def test_plugin_hooks_count_as_set_up(tmp_path: Path) -> None:
+    settings = tmp_path / "settings.json"
+    assert installer.setup_needed(settings, python="/x/python") == "missing"
+    hook = _fake_plugin(tmp_path)
+    assert installer.plugin_hook_paths(tmp_path) == [hook]
+    assert installer.setup_needed(settings, python="/x/python") is None
+
+
+def test_plugin_hook_script_finishes_quietly_without_runtime(tmp_path: Path) -> None:
+
+    script = Path(__file__).resolve().parents[1] / "hooks" / "bao-hook"
+    env = {"HOME": str(tmp_path), "BAO_HOME": str(tmp_path / "b"), "PATH": "/usr/bin:/bin"}
+    out = subprocess.run(
+        [str(script)], input=b'{"hook_event_name":"Stop"}', capture_output=True, env=env
+    )
+    assert out.returncode == 0 and out.stdout == b""

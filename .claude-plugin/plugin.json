@@ -1,0 +1,8 @@
+{
+  "name": "bao",
+  "version": "0.1.0",
+  "description": "A desktop pet (panda, cat, penguin, hummingbird) that shows live what Claude Code is doing: thinking, working, waiting, needs permission, done.",
+  "author": { "name": "suhailparad" },
+  "repository": "https://github.com/suhailparad/bao-claude",
+  "keywords": ["desktop-pet", "notifications", "hooks", "macos"]
+}

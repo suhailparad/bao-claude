@@ -113,6 +113,11 @@ bao/
   characters/cat/    # ginger tabby (same poses/props as the panda)
   characters/penguin/ # penguin with flippers for arms (same poses/props as the panda)
   characters/hummingbird/ # colourful hummingbird; wings for arms, blur-buzzing while awake
+.claude-plugin/        # Claude Code plugin: plugin.json, marketplace.json (source "./"), icon.png
+hooks/hooks.json       # plugin hooks (same events as installer.HOOK_EVENTS; keep in sync)
+hooks/bao-hook         # POSIX sh: find runtime ($BAO_PYTHON, ~/.bao/runtime, Bao.app) → -I -m bao.hook;
+                       #   stands down if settings.json has bao.hook entries (no double events)
+skills/pet/SKILL.md    # plugin skill: set up / check / control the pet via the CLI + config.json
 tools/
   gen_panda.py       # draws placeholder panda frames with QPainter (poses, props, generate())
   gen_cat.py         # draws the cat with the panda's poses/props

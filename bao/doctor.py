@@ -52,10 +52,23 @@ def run_doctor(settings: Path | None = None) -> int:
     except installer.SettingsError as exc:
         _line(BAD, str(exc))
         return 1
-    if not st.installed:
-        _line(BAD, f"not installed in {st.path}; run: python -m bao install-hooks")
+    plugin_hooks = installer.plugin_hook_paths(st.path.parent)
+    if not st.installed and plugin_hooks:
+        _line(OK, f"provided by the bao Claude Code plugin ({plugin_hooks[-1].parent.parent})")
+    elif not st.installed:
+        _line(
+            BAD,
+            f"not installed in {st.path}; run: python -m bao install-hooks"
+            " (or install the bao Claude Code plugin)",
+        )
         problems += 1
     else:
+        if plugin_hooks:
+            _line(
+                WARN,
+                "the bao plugin is installed too; its hooks stand down while these exist"
+                " (run uninstall-hooks to let the plugin take over)",
+            )
         if st.missing:
             _line(WARN, f"missing events: {', '.join(st.missing)} (re-run install-hooks)")
         else:
