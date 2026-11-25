@@ -152,6 +152,14 @@ def cmd_uninstall_hooks(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_link_plugin(args: argparse.Namespace) -> int:
+    from . import installer
+
+    path = installer.link_plugin()
+    print(f"The bao Claude Code plugin will run: {path.read_text().strip()}  ({path})")
+    return 0
+
+
 def cmd_doctor(args: argparse.Namespace) -> int:
     from .doctor import run_doctor
 
@@ -197,6 +205,9 @@ def build_parser() -> argparse.ArgumentParser:
     d.add_argument("state", choices=["on", "off", "status"])
     d.set_defaults(func=cmd_dnd)
 
+    sub.add_parser(
+        "link-plugin", help="make the Claude Code plugin's hooks use this copy of bao"
+    ).set_defaults(func=cmd_link_plugin)
     sub.add_parser("quit", help="stop the running pet").set_defaults(func=cmd_quit)
     return p
 

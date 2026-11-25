@@ -5,30 +5,33 @@ description: Set up, check and control the bao desktop pet that shows what Claud
 
 # bao desktop pet
 
-The plugin's hooks send every Claude Code event to the bao pet app. The plugin does
-**not** contain the app (it needs Qt), so a bao runtime must be installed on this Mac.
-`${CLAUDE_PLUGIN_ROOT}/hooks/bao-hook` looks for one in this order and silently does
-nothing if none is found:
+The plugin's hooks send every Claude Code event to the bao pet app. It runs on macOS,
+Linux and Windows. The plugin does **not** contain the app (it needs Qt), so bao must be
+installed on this computer. `${CLAUDE_PLUGIN_ROOT}/hooks/bao-hook` (run with `sh`, so Git Bash
+on Windows) looks for it in this order and silently does nothing if none is found:
 
 1. `$BAO_PYTHON`: a python that has bao installed
 2. `~/.bao/runtime`: one line, the path to such a python or to Bao.app's `bao-hook`
-3. `/Applications/Bao.app` or `~/Applications/Bao.app`
+   (written by `bao link-plugin`)
+3. macOS only: `/Applications/Bao.app` or `~/Applications/Bao.app`
 
 ## Find the `bao` command
 
 Use the first one that works, and call it `BAO` below:
-- Bao.app: `/Applications/Bao.app/Contents/MacOS/Bao -I -m bao` (or under `~/Applications`)
 - the python named in `~/.bao/runtime`: `<python> -I -m bao`
+- macOS Bao.app: `/Applications/Bao.app/Contents/MacOS/Bao -I -m bao` (or under `~/Applications`)
 - `bao` on PATH
 
-If there is none, help the user install it:
-- **App (recommended):** `brew install --cask suhailparad/bao/bao` (Apple silicon), or download
-  the DMG from https://github.com/suhailparad/bao-claude/releases and drag Bao into Applications.
-  Bao.app is found automatically. When Bao opens and offers to *Connect* to Claude Code, the
-  plugin already does that, so it can be skipped. Connecting anyway doesn't cause duplicate events.
-- **From source:** clone the repo, `python3 -m venv .venv && .venv/bin/pip install -e .`
-  (Python 3.10+), then write the venv's python path (not symlink-resolved) to `~/.bao/runtime`:
-  `echo "$PWD/.venv/bin/python" > ~/.bao/runtime`.
+If there is none, help the user install it (see the bao README for details):
+- **macOS, app (recommended):** `brew install --cask suhailparad/bao/bao` (Apple silicon), or the
+  DMG from https://github.com/suhailparad/bao-claude/releases. Bao.app is found automatically;
+  when it offers to *Connect* to Claude Code, that can be skipped (the plugin does it).
+- **Linux / Windows / macOS from source:** clone https://github.com/suhailparad/bao-claude,
+  create a venv (Python 3.10+) and `pip install -e .` in it. On Ubuntu first
+  `sudo apt install python3-venv libxcb-cursor0 libegl1 libxkbcommon-x11-0 xdotool`.
+  Then run `<venv python> -m bao link-plugin`, which writes `~/.bao/runtime`. The venv python is
+  `.venv/bin/python`, or `.venv\Scripts\python.exe` on Windows. Don't write that file with
+  PowerShell's `>` (it writes UTF-16).
 
 ## Check it works
 

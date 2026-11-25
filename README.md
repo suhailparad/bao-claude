@@ -12,11 +12,12 @@ You can add your own without touching any code.
 
 ## Requirements
 
-- macOS (built and tested on macOS 12; other platforms aren't supported yet)
+- macOS (the ready-made app), Linux (Ubuntu 22.04+, X11 or Wayland with XWayland) or
+  Windows 10/11 (from source)
 - Claude Code
-- Python 3.10 or newer, only if you install from source
+- Python 3.10 or newer, for a source install
 
-## Install the app
+## Install the app (macOS)
 
 **With Homebrew** (Apple silicon):
 
@@ -38,7 +39,7 @@ This also puts the `bao` command on your PATH. `brew upgrade` updates it, and
    Open Anyway*. Or, in Terminal: `xattr -dr com.apple.quarantine /Applications/Bao.app`.
 3. Bao asks to **connect to Claude Code**. Click *Connect*: it adds its hooks to
    `~/.claude/settings.json`, keeps everything else and saves a backup as
-   `settings.json.bak`.
+   `settings.json.bak`. (Using the [plugin](#install-as-a-claude-code-plugin)? Skip this.)
 
 That's it: the pet appears whenever you start a Claude Code session, and quits about 15
 minutes after the last one ends. There's no Dock icon; right-click the pet for its menu.
@@ -55,46 +56,73 @@ bao doctor          # bao status, bao dnd on, bao send thinking, ... as below
 **Uninstall.** Run `/Applications/Bao.app/Contents/MacOS/Bao uninstall-hooks`, quit the
 pet (right-click → Quit Bao), then delete Bao.app and `~/.bao`.
 
-## Install as a Claude Code plugin
+## Install from source (macOS, Linux, Windows)
 
-The plugin replaces the *Connect* / `install-hooks` step. Claude Code adds bao's hooks
-when you install it and removes them when you uninstall it, and `~/.claude/settings.json`
-is never edited. You still need the app (above, or from source below), because the
-plugin doesn't contain it.
-
-```
-/plugin marketplace add suhailparad/bao-claude
-/plugin install bao@bao
-```
-
-The plugin also adds a `pet` skill. Ask Claude things like "set up bao", "switch the
-pet to the penguin", "turn on quiet hours from 22:00 to 08:00" or "why isn't the panda
-reacting?".
-
-The plugin's hook finds bao in this order: `$BAO_PYTHON`, then the path in
-`~/.bao/runtime`, then `/Applications/Bao.app` or `~/Applications/Bao.app`. For a source
-install, point it at your venv with `echo "$PWD/.venv/bin/python" > ~/.bao/runtime`.
-If hooks from `install-hooks` / *Connect* are still in `settings.json`, the plugin stays
-quiet so events aren't sent twice. Run `bao uninstall-hooks` to hand over to the plugin.
-
-## Install from source
+macOS and Linux:
 
 ```bash
 git clone https://github.com/suhailparad/bao-claude.git
 cd bao-claude
-python -m venv .venv && source .venv/bin/activate
+python3 -m venv .venv && source .venv/bin/activate
 pip install -e .
+```
 
+On **Ubuntu**, install the Qt runtime libraries and (for click-to-focus) `xdotool` first:
+
+```bash
+sudo apt install python3-venv libxcb-cursor0 libegl1 libxkbcommon-x11-0 xdotool
+```
+
+Windows (PowerShell):
+
+```powershell
+git clone https://github.com/suhailparad/bao-claude.git
+cd bao-claude
+py -m venv .venv; .venv\Scripts\Activate.ps1
+pip install -e .
+```
+
+Then connect it to Claude Code, either with the [plugin](#install-as-a-claude-code-plugin)
+(`python -m bao link-plugin`), or by writing the hooks into your settings:
+
+```bash
 python -m bao install-hooks   # registers bao's hooks in ~/.claude/settings.json
 python -m bao doctor          # checks that everything is set up
 ```
 
 `install-hooks` backs up your settings to `~/.claude/settings.json.bak` first, only
 adds its own entries, and is safe to run again. The hooks point at this venv's Python,
-so if you move or recreate the venv, run `install-hooks` again.
+so if you move or recreate the venv, run `install-hooks` (or `link-plugin`) again.
 
 That's it: the pet starts by itself the next time you start a Claude Code session, and
 quits about 15 minutes after the last session ends.
+
+## Install as a Claude Code plugin
+
+The plugin replaces the *Connect* / `install-hooks` step on every OS. Claude Code adds
+bao's hooks when you install it and removes them when you uninstall it, and
+`~/.claude/settings.json` is never edited. You still need bao itself (the Mac app, or a
+source install above), because the plugin doesn't contain it.
+
+In Claude Code:
+
+```
+/plugin marketplace add suhailparad/bao-claude
+/plugin install bao@bao
+```
+
+- **Bao.app:** nothing else to do, the plugin finds it in `/Applications` or `~/Applications`.
+- **Source install:** tell the plugin which Python to use, from the activated venv:
+  `python -m bao link-plugin` (writes `~/.bao/runtime`; run it again if you move the venv).
+
+Then start a new Claude Code session. The plugin also adds a `pet` skill: ask Claude
+things like "set up bao", "switch the pet to the penguin", "turn on quiet hours from
+22:00 to 08:00" or "why isn't the panda reacting?".
+
+The plugin's hook is a small `sh` script (Git Bash runs it on Windows). It finds bao in
+this order: `$BAO_PYTHON`, the path in `~/.bao/runtime`, then Bao.app. If hooks from
+`install-hooks` / *Connect* are still in `settings.json`, the plugin stays quiet so events
+aren't sent twice; run `bao uninstall-hooks` to hand over to the plugin.
 
 ## What the pet shows
 
@@ -150,6 +178,18 @@ python -m bao uninstall-hooks  # remove bao's hooks from Claude Code
 **Do Not Disturb** (right-click menu or `bao dnd on`) silences every sound but keeps the
 animations; a small moon shows while it's on. Set `"quiet_hours": ["22:00", "08:00"]` in the
 config to turn it on automatically every day (the range may cross midnight).
+
+### Platform notes
+
+| | macOS | Linux | Windows |
+|---|---|---|---|
+| Click to focus the terminal | exact Terminal/iTerm2 tab, other apps | the terminal window, via `xdotool` or `wmctrl` | the terminal window (Windows Terminal, VS Code, console) |
+| `system:` sounds | `system:Glass` (/System/Library/Sounds) | `system:complete` (freedesktop theme) | `system:tada` (C:\Windows\Media) |
+| Hook ↔ pet | Unix socket `~/.bao/pet.sock` | Unix socket | localhost TCP, port + token in `~/.bao/pet.port` |
+
+On a Wayland desktop the pet runs through XWayland, because Wayland doesn't let apps
+place their own windows (it couldn't remember its spot or wander). A see-through
+window needs a compositor, which every mainstream Linux desktop has.
 
 Settings live in `~/.bao/config.json` (character, scale, muted, volume, muted_cues,
 show_bubble, roam, permission_reminder_seconds, do_not_disturb, quiet_hours, quit_after_minutes,

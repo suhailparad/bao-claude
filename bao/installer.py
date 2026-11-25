@@ -53,9 +53,17 @@ def hook_python() -> str:
     return sys.executable
 
 
-def hook_command(python: str | None = None) -> str:
-    # Keep the venv path as-is (don't resolve symlinks: that would lose the venv).
-    return f"{shlex.quote(python or hook_python())} -I -m {HOOK_MARKER}"
+def hook_command(python: str | None = None, windows: bool | None = None) -> str:
+    """The shell command Claude Code runs for every hook event.
+
+    Keeps the venv path as-is (don't resolve symlinks: that would lose the venv).
+    On Windows the path uses forward slashes in double quotes, which both Git Bash
+    and cmd.exe accept.
+    """
+    python = python or hook_python()
+    if sys.platform == "win32" if windows is None else windows:
+        return f'"{python.replace(chr(92), "/")}" -I -m {HOOK_MARKER}'
+    return f"{shlex.quote(python)} -I -m {HOOK_MARKER}"
 
 
 def _is_ours(hook: Any) -> bool:
@@ -192,6 +200,20 @@ def plugin_hook_paths(config_dir: Path | None = None) -> list[Path]:
         return []
     # cache/<marketplace>/<plugin>/<version>/hooks/bao-hook
     return sorted(p for p in plugins.glob("cache/*/bao/*/hooks/bao-hook") if p.is_file())
+
+
+def link_plugin(python: str | None = None) -> Path:
+    """Point the Claude Code plugin's hook at this copy of bao (writes ``~/.bao/runtime``).
+
+    Forward slashes on Windows, so the plugin's sh script can test the path in Git Bash.
+    """
+    from .paths import runtime_path
+
+    exe = (python or hook_python()).replace("\\", "/")
+    path = runtime_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(exe + "\n", encoding="utf-8", newline="\n")
+    return path
 
 
 def setup_needed(path: Path | None = None, python: str | None = None) -> str | None:

@@ -1,6 +1,6 @@
 # CLAUDE.md — bao
 
-A desktop pet (default: **panda**) that floats on the macOS desktop and shows, live,
+A desktop pet (default: **panda**) that floats on the desktop (macOS, Linux, Windows) and shows, live,
 what Claude Code is doing: thinking, working, waiting for input, needs permission,
 done. It plays a sound on important events and supports multiple, swappable characters.
 
@@ -22,12 +22,14 @@ Claude Code ──(hook JSON on stdin)──► hook.py ──(JSON line over Un
                                                                                    └─ SoundPlayer (mute/volume)
 ```
 
-- **IPC:** Unix stream socket at `~/.bao/pet.sock`, one JSON object per line.
+- **IPC:** one JSON object per line. macOS/Linux: Unix socket `~/.bao/pet.sock`.
+  Windows (or `BAO_IPC=tcp`, used by tests): TCP on 127.0.0.1, `~/.bao/pet.port` holds
+  `{port, token}` (0600) and every message carries the token; the server drops others.
   The hook connects with a ~200 ms timeout. If the pet isn't there, it drops the event
   (and launches the pet only for `SessionStart`).
 - **Hook golden rule:** `hook.py` must **always exit 0, print nothing to stdout, and finish in under 300 ms**.
   Anything else can block or confuse Claude Code. Wrap everything in try/except.
-- **Single instance:** the pet app holds `~/.bao/pet.lock`. A second launch exits quietly.
+- **Single instance:** the pet app holds `~/.bao/pet.lock` (`fcntl` / `msvcrt`). A second launch exits quietly.
 
 ### Event → state mapping
 | Claude Code hook | Pet state | Sound |
@@ -92,9 +94,10 @@ bao/characters/<id>/
 ## Project layout (target)
 ```
 bao/
-  __main__.py        # CLI: run | send | status | sound | dnd | quit | install-hooks | uninstall-hooks | doctor
+  __main__.py        # CLI: run | send | status | sound | dnd | quit | install-hooks | uninstall-hooks | link-plugin | doctor
   doctor.py          # setup checks
-  focus.py           # click → focus the session's terminal (bundle id + tty, AppleScript/open -b)
+  focus.py           # click → focus the session's terminal: mac AppleScript/open -b,
+                     #   Linux xdotool/wmctrl on ancestor pids, Windows Win32 SetForegroundWindow
   hook.py            # stdlib-only hook entry point
   paths.py           # ~/.bao/* locations (BAO_HOME overrides; stdlib only)
   ipc.py             # Unix-socket client/server + single-instance lock (stdlib only)
@@ -104,6 +107,7 @@ bao/
   character.py       # manifest loading/validation, frame loading
   window.py          # PetWindow: transparent frameless widget, animation, bubble, drag, context menu
   platform_mac.py    # pyobjc tweaks: hide Dock icon, float on all Spaces (no-ops elsewhere)
+  desktop.py         # per-OS helpers: system sounds, Qt platform (Wayland → xcb), pythonw
   sound.py           # SoundPlayer: .wav → QSoundEffect, system:/aiff/mp3 → afplay; mute, volume, per-cue off, DND/quiet hours, 1.5 s repeat guard
   config.py          # ~/.bao/config.json (character, scale, muted, volume, muted_cues, show_bubble, permission_reminder_seconds,
                      #   do_not_disturb, quiet_hours, roam, position)
@@ -115,8 +119,9 @@ bao/
   characters/hummingbird/ # colourful hummingbird; wings for arms, blur-buzzing while awake
 .claude-plugin/        # Claude Code plugin: plugin.json, marketplace.json (source "./"), icon.png
 hooks/hooks.json       # plugin hooks (same events as installer.HOOK_EVENTS; keep in sync)
-hooks/bao-hook         # POSIX sh: find runtime ($BAO_PYTHON, ~/.bao/runtime, Bao.app) → -I -m bao.hook;
-                       #   stands down if settings.json has bao.hook entries (no double events)
+hooks/bao-hook         # POSIX sh, run as `sh …/bao-hook` (Git Bash on Windows): runtime from $BAO_PYTHON,
+                       #   ~/.bao/runtime (`bao link-plugin`), Bao.app → `-I -m bao.hook`; stands down if
+                       #   settings.json has bao.hook entries (no double events)
 skills/pet/SKILL.md    # plugin skill: set up / check / control the pet via the CLI + config.json
 tools/
   gen_panda.py       # draws placeholder panda frames with QPainter (poses, props, generate())
@@ -179,8 +184,9 @@ pytest
   generators' `roaming` pose (`step` lifts a foot, `flying` hides shadow/feet).
 - User state lives in `~/.bao/` only: config, socket, lock, log (`pet.log`). Nothing goes in the repo.
 - The app takes ~1.5 s to start (Qt import). The hook passes the event that triggered a launch via
-  `run --initial-event`, so nothing is lost. Scripts that drive the app must wait for `pet.sock` to exist.
-- Tests set `BAO_HOME` to a short dir under `/tmp`, because macOS limits Unix socket paths to ~104 bytes.
+  `run --initial-event`, so nothing is lost. Scripts that drive the app must wait for `paths.endpoint_path()` (`pet.sock` / `pet.port`) to exist.
+- Tests set `BAO_HOME` to a short dir under `/tmp` (system temp on Windows), because macOS limits
+  Unix socket paths to ~104 bytes. IPC tests run over both transports (`transport` fixture).
 - The character PNGs are generated: edit `tools/gen_<id>.py`, never the PNGs by hand
   (`--sheet out.png` writes a contact sheet so you can review every frame at once).
   A `QPainterPath` of overlapping shapes needs `setFillRule(Qt.WindingFill)`, or the overlaps become holes.
@@ -190,4 +196,8 @@ pytest
 - Sounds are generated too: edit `tools/gen_sounds.py` (it owns the manifest's `"sounds"` section;
   `gen_panda.py` keeps that section untouched).
 - Type hints everywhere. Format with `ruff format` and lint with `ruff check`.
-- macOS first. Keep platform-specific code (window flags, system sounds) behind small helpers so Linux and Windows can be added later.
+- macOS, Linux and Windows are supported. Keep platform-specific code in `desktop.py`,
+  `focus.py`, `ipc.py` (transport/lock) and `platform_mac.py`; branch on `sys.platform`
+  there, never in the UI. CI (`.github/workflows/tests.yml`) runs the suite on all three.
+- Off macOS, non-wav sounds play through `QMediaPlayer`; the hook launches the pet with
+  `pythonw.exe` + DETACHED_PROCESS on Windows, `start_new_session` elsewhere.

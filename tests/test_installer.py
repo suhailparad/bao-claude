@@ -1,4 +1,6 @@
 import json
+import os
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -125,11 +127,79 @@ def test_plugin_hooks_count_as_set_up(tmp_path: Path) -> None:
     assert installer.setup_needed(settings, python="/x/python") is None
 
 
-def test_plugin_hook_script_finishes_quietly_without_runtime(tmp_path: Path) -> None:
+SH = shutil.which("sh")
+HOOK_SCRIPT = Path(__file__).resolve().parents[1] / "hooks" / "bao-hook"
 
-    script = Path(__file__).resolve().parents[1] / "hooks" / "bao-hook"
-    env = {"HOME": str(tmp_path), "BAO_HOME": str(tmp_path / "b"), "PATH": "/usr/bin:/bin"}
-    out = subprocess.run(
-        [str(script)], input=b'{"hook_event_name":"Stop"}', capture_output=True, env=env
+
+def _run_plugin_hook(tmp_path: Path, **env: str) -> subprocess.CompletedProcess[bytes]:
+    base = {"HOME": str(tmp_path), "BAO_HOME": str(tmp_path / "b"), "PATH": os.environ["PATH"]}
+    return subprocess.run(
+        [SH, str(HOOK_SCRIPT)],
+        input=b'{"hook_event_name":"Stop"}',
+        capture_output=True,
+        env={**base, **env},
+        timeout=10,
     )
+
+
+@pytest.mark.skipif(SH is None, reason="needs sh (Git Bash on Windows)")
+def test_plugin_hook_script_finishes_quietly_without_runtime(tmp_path: Path) -> None:
+    out = _run_plugin_hook(tmp_path)
     assert out.returncode == 0 and out.stdout == b""
+
+
+@pytest.mark.skipif(SH is None, reason="needs sh (Git Bash on Windows)")
+def test_plugin_hook_script_runs_linked_runtime(tmp_path: Path) -> None:
+    # A fake runtime that records its argv and stdin; Windows-style line ending on purpose.
+    log = tmp_path / "called"
+    fake = tmp_path / "fake-python"
+    fake.write_text(f'#!/bin/sh\necho "$@" > "{log.as_posix()}"\ncat >> "{log.as_posix()}"\n')
+    fake.chmod(0o755)
+    (tmp_path / "b").mkdir()
+    (tmp_path / "b" / "runtime").write_bytes(fake.as_posix().encode() + b"\r\n")
+    out = _run_plugin_hook(tmp_path)
+    assert out.returncode == 0 and out.stdout == b""
+    assert log.read_text().splitlines() == ["-I -m bao.hook", '{"hook_event_name":"Stop"}']
+
+    # Hooks from install-hooks in settings.json: the plugin stands down.
+    log.unlink()
+    (tmp_path / ".claude").mkdir()
+    (tmp_path / ".claude" / "settings.json").write_text('{"x": "py -I -m bao.hook"}')
+    assert _run_plugin_hook(tmp_path).returncode == 0
+    assert not log.exists()
+
+
+def test_link_plugin_writes_runtime(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("BAO_HOME", str(tmp_path))
+    path = installer.link_plugin(r"C:\Users\Me\.venv\Scripts\python.exe")
+    assert path.read_bytes() == b"C:/Users/Me/.venv/Scripts/python.exe\n"
+
+
+def test_plugin_hooks_json_matches_install_hooks() -> None:
+    data = json.loads((HOOK_SCRIPT.parent / "hooks.json").read_text())
+    assert set(data["hooks"]) == set(installer.HOOK_EVENTS)
+    for event, matcher in installer.HOOK_EVENTS.items():
+        (group,) = data["hooks"][event]
+        assert group.get("matcher") == matcher
+
+
+def test_hook_command_per_platform():
+    from bao.installer import hook_command
+
+    assert hook_command("/opt/my venv/bin/python", windows=False) == (
+        "'/opt/my venv/bin/python' -I -m bao.hook"
+    )
+    win = hook_command(r"C:\Users\Me\bao\.venv\Scripts\python.exe", windows=True)
+    assert win == '"C:/Users/Me/bao/.venv/Scripts/python.exe" -I -m bao.hook'
+    import shlex
+
+    assert shlex.split(win)[0] == "C:/Users/Me/bao/.venv/Scripts/python.exe"  # doctor parses it
+
+
+def test_configure_qt_platform():
+    from bao import desktop
+
+    env = {"WAYLAND_DISPLAY": "wayland-0", "DISPLAY": ":0"}
+    expected = "xcb;wayland" if desktop.IS_LINUX else None
+    assert desktop.configure_qt_platform(env) == expected
+    assert desktop.configure_qt_platform({"QT_QPA_PLATFORM": "offscreen"}) is None

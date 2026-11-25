@@ -13,6 +13,8 @@ from dataclasses import asdict, dataclass, field
 from enum import Enum
 from typing import Any
 
+from .focus import clean_info
+
 
 class State(str, Enum):
     SLEEPING = "sleeping"
@@ -94,7 +96,7 @@ class Session:
     variant: str | None
     last_event_at: float
     state_since: float
-    terminal: dict[str, str] = field(default_factory=dict)  # {"app": bundle id, "tty": ...}
+    terminal: dict[str, Any] = field(default_factory=dict)  # see focus.terminal_info
     turn_started_at: float | None = None  # UserPromptSubmit of the current turn
     last_turn_seconds: float | None = None  # how long the last finished turn took
     reminded: bool = False  # the reminder for the current state was given
@@ -181,9 +183,9 @@ class SessionTracker:
         project = _project_name(msg.get("cwd"))
         if project:
             session.project = project
-        terminal = msg.get("terminal")
-        if isinstance(terminal, dict) and terminal:
-            session.terminal = {k: v for k, v in terminal.items() if isinstance(v, str)}
+        terminal = clean_info(msg.get("terminal"))
+        if terminal:
+            session.terminal = terminal
 
         cues: list[str] = []
         if event == "SessionStart":
@@ -294,7 +296,7 @@ class SessionTracker:
             duration=duration,
         )
 
-    def terminal_for(self, session_id: str | None) -> dict[str, str] | None:
+    def terminal_for(self, session_id: str | None) -> dict[str, Any] | None:
         session = self.sessions.get(session_id) if session_id else None
         return dict(session.terminal) if session and session.terminal else None
 

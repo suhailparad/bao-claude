@@ -73,3 +73,69 @@ def test_click_focuses_displayed_session(monkeypatch):
     c.apply({"event": "UserPromptSubmit", "session_id": "b"})
     c.apply({"event": "Notification", "session_id": "b", "notification_type": "permission_prompt"})
     assert not c.focus_session(c.display)  # b has no terminal info
+
+
+def test_linux_ancestors_from_proc(tmp_path):
+    for pid, ppid, comm in ((40, 30, "claude"), (30, 20, "bash (login)"), (20, 1, "kitty")):
+        (tmp_path / str(pid)).mkdir()
+        (tmp_path / str(pid) / "stat").write_text(f"{pid} ({comm}) S {ppid} 1 1 0 -1\n")
+    assert focus._linux_ancestors(40, proc=str(tmp_path)) == [40, 30, 20]
+    assert focus._linux_ancestors(99, proc=str(tmp_path)) == [99]  # unknown pid: just itself
+
+
+def test_clean_info_keeps_only_valid_fields():
+    raw = {
+        "app": "com.apple.Terminal",
+        "tty": "/dev/ttys001",
+        "pids": [40, "x", -1, True, 30],
+        "windowid": 123,
+        "console": "nope",
+        "extra": {"a": 1},
+    }
+    assert focus.clean_info(raw) == {
+        "app": "com.apple.Terminal",
+        "tty": "/dev/ttys001",
+        "pids": [40, 30],
+        "windowid": 123,
+    }
+    assert focus.clean_info(None) == {} and focus.clean_info({"pids": []}) == {}
+
+
+def test_pick_window_prefers_nearest_ancestor():
+    windows = [(0xA, 20), (0xB, 30), (0xC, 30)]
+    assert focus.pick_window(windows, [40, 30, 20]) == 0xB  # nearest owner, first window
+    assert focus.pick_window(windows, [99], fallback=0xF) == 0xF  # e.g. the console window
+    assert focus.pick_window([], [1]) is None
+
+
+def test_parse_wmctrl():
+    listing = "0x04e00007  0 4242   host Terminal\n0x05000003 -1 1   host Desktop\nbad line\n"
+    assert focus.parse_wmctrl(listing) == [(0x04E00007, 4242), (0x05000003, 1)]
+
+
+def test_linux_focus_needs_a_tool(monkeypatch):
+    monkeypatch.setattr(focus, "IS_MAC", False)
+    monkeypatch.setattr(focus, "IS_LINUX", True)
+    monkeypatch.setattr(focus.shutil, "which", lambda name: None)
+    assert not focus.focus_terminal({"pids": [1234]})
+    runs = []
+    monkeypatch.setattr(
+        focus.shutil, "which", lambda n: "/usr/bin/xdotool" if n == "xdotool" else None
+    )
+    monkeypatch.setattr(
+        focus, "_run", lambda argv: runs.append(argv) or ("777\n" if "search" in argv else "")
+    )
+    monkeypatch.setattr(focus.threading, "Thread", _InlineThread)
+    assert focus.focus_terminal({"pids": [1234, 99]})
+    assert runs == [
+        ["/usr/bin/xdotool", "search", "--onlyvisible", "--pid", "1234"],
+        ["/usr/bin/xdotool", "windowactivate", "777"],
+    ]
+
+
+class _InlineThread:
+    def __init__(self, target, args, daemon):
+        self._run = lambda: target(*args)
+
+    def start(self):
+        self._run()
