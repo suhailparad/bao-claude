@@ -7,7 +7,7 @@ import sys
 
 log = logging.getLogger(__name__)
 
-IS_MAC = sys.platform == "darwin"
+IS_MAC = sys.platform == "darwin"  # (see desktop.py for the other platforms)
 
 
 def hide_dock_icon() -> None:

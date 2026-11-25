@@ -1,0 +1,52 @@
+#!/bin/sh
+# bao plugin hook: forwards a Claude Code hook event (JSON on stdin) to the bao pet.
+#
+# The plugin ships no Python runtime, so this finds an installed bao, in order:
+#   1. $BAO_PYTHON            a python that has bao installed (e.g. a dev venv)
+#   2. $BAO_HOME/runtime      first line: such a python, or Bao.app's bao-hook
+#                             (written by `bao link-plugin`)
+#   3. Bao.app                /Applications or ~/Applications (macOS, its Qt-free bao-hook)
+# If none is found it does nothing.
+#
+# POSIX sh: runs under dash/bash on Linux, zsh-less /bin/sh on macOS and Git Bash on Windows.
+# Same golden rule as bao/hook.py: always exit 0, print nothing, finish fast.
+
+home="${HOME:-$USERPROFILE}"
+bao_home="${BAO_HOME:-$home/.bao}"
+settings="${CLAUDE_CONFIG_DIR:-$home/.claude}/settings.json"
+
+# Hooks from `bao install-hooks` already deliver every event; don't send them twice.
+if [ -f "$settings" ] && grep -q 'bao\.hook' "$settings" 2>/dev/null; then
+    exit 0
+fi
+
+# Windows paths: C:\x\python.exe -> C:/x/python.exe, and drop a trailing CR.
+normalize() {
+    case "$1" in
+        *\\* | *"$(printf '\r')") printf '%s' "$1" | tr '\\' '/' | tr -d '\r' ;;
+        *) printf '%s' "$1" ;;
+    esac
+}
+
+runtime=""
+if [ -n "$BAO_PYTHON" ]; then
+    runtime=$(normalize "$BAO_PYTHON")
+elif [ -f "$bao_home/runtime" ]; then
+    IFS= read -r runtime < "$bao_home/runtime" 2>/dev/null
+    runtime=$(normalize "$runtime")
+fi
+if [ -n "$runtime" ] && [ ! -f "$runtime" ]; then
+    runtime=""
+fi
+if [ -z "$runtime" ]; then
+    for app in "/Applications/Bao.app" "$home/Applications/Bao.app"; do
+        if [ -x "$app/Contents/MacOS/bao-hook" ]; then
+            runtime="$app/Contents/MacOS/bao-hook"
+            break
+        fi
+    done
+fi
+
+[ -n "$runtime" ] || exit 0
+"$runtime" -I -m bao.hook >/dev/null 2>&1
+exit 0
