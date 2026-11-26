@@ -156,6 +156,7 @@ def test_roam_spec_in_manifests(tmp_path):
     from bao.character import ManifestError, load_character
 
     assert load_character(BUILTIN_DIR / "penguin").roam.style == "walk"
+    assert load_character(BUILTIN_DIR / "panda").roam.style == "stay"  # eats bamboo instead
     bird = load_character(BUILTIN_DIR / "hummingbird").roam
     assert (bird.style, bird.faces) == ("fly", "left")
     owl = load_character(BUILTIN_DIR / "owl").roam

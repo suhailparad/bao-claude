@@ -7,7 +7,7 @@ sound on the important moments, so you can look away while Claude works.
 
 https://github.com/user-attachments/assets/4cb4add8-5b59-4418-be31-370bf4755566
 
-Five characters are built in: a **panda** (the default, with soft chimes), a
+Five characters are built in: a **panda** (the default: munches bamboo, bleats and chirps like a real panda), a
 **ginger cat** (with meows, chirps and a purr), a **penguin** (with peeps, squawks and a
 happy little bray), a colourful **hummingbird** (with chirps, twitters and a wing hum)
 and a tawny **owl** (with hoots and a screech).
@@ -156,8 +156,9 @@ bubble says how many sessions there are. Click the pet to jump to the session it
 ## Using it
 
 - **Drag** the pet anywhere. It remembers where you put it.
-- While Claude is idle or waiting for you, the pet **wanders around**: the panda, cat and
-  penguin waddle left and right, the hummingbird and the owl fly about. As soon as Claude gets to
+- While Claude is idle or waiting for you, the pet **wanders around**: the cat and penguin
+  waddle left and right, the hummingbird and the owl fly about. The panda stays put, sits
+  down and munches bamboo (and lies down on its side when it sleeps). As soon as Claude gets to
   work it hurries back to the spot you gave it. Turn it off with *Wander around when idle*.
 - **Click** the pet to jump to the terminal of the session it's showing. In Terminal and
   iTerm2 it picks the exact tab (macOS asks once to let bao control the app); in other
@@ -232,7 +233,8 @@ A character is just a folder with a `manifest.json`, PNG frames and sounds. Put 
   fall back to `fallback_state`. The tool variants fall back to `working` first.
 - Frames can be a folder of numbered PNGs or one sprite sheet.
 - Wandering: a `roaming` state is played while the pet walks or flies. `roam` (optional)
-  sets the `style` (`walk` along the ground or `fly` in the air), the `speed` in px/s
+  sets the `style` (`walk` along the ground, `fly` in the air, or `stay` at home like the
+  bamboo-munching panda), the `speed` in px/s
   and which way the art `faces` (`front`, or `left`/`right` to mirror it toward travel).
 - Sound cues: `hello`, `waiting`, `alert`, `done`, `bye`. Use a `.wav` file in the
   folder, or `"system:<Name>"` for a macOS sound such as `system:Glass`.
@@ -251,7 +253,7 @@ python tools/gen_cat.py                      # regenerate the cat's frames
 python tools/gen_penguin.py                  # regenerate the penguin's frames
 python tools/gen_hummingbird.py              # regenerate the hummingbird's frames
 python tools/gen_owl.py                      # regenerate the owl's frames
-python tools/gen_sounds.py                   # regenerate the panda's chimes
+python tools/gen_sounds.py                   # regenerate the panda's bleats and chirps
 python tools/gen_sounds.py --character cat   # regenerate the cat's meows
 python tools/gen_sounds.py --character penguin  # regenerate the penguin's peeps
 python tools/gen_sounds.py --character hummingbird  # regenerate the hummingbird's chirps

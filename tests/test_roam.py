@@ -20,6 +20,7 @@ def test_spec_parse_and_validation():
     assert RoamSpec.parse(None) == RoamSpec()
     spec = RoamSpec.parse({"style": "fly", "speed": 70, "faces": "left"})
     assert (spec.style, spec.speed, spec.faces) == ("fly", 70.0, "left")
+    assert RoamSpec.parse({"style": "stay"}).style == "stay"
     for bad in ({"style": "swim"}, {"speed": 0}, {"speed": True}, {"faces": "up"}, "walk"):
         with pytest.raises(ValueError):
             RoamSpec.parse(bad)

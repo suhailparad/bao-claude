@@ -63,6 +63,8 @@ class Pose:
     blush: bool = True
     step: float = 0.0  # walking: >0 lifts the left foot, <0 the right one (−1..1)
     flying: bool = False  # airborne: no ground shadow, feet tucked (birds)
+    posture: str = "stand"  # stand | sit (bamboo picnic) | lie (asleep on its side); panda only
+    chew: float = 0.0  # sitting: 0..1 how far the bamboo is pushed into the mouth
     behind: list[Prop] = field(default_factory=list)  # drawn behind the arms
     front: list[Prop] = field(default_factory=list)  # drawn on top of everything
 
@@ -165,6 +167,12 @@ def draw_mouth(p: QPainter, cx: float, cy: float, kind: str) -> None:
 def draw_panda(p: QPainter, pose: Pose, t: float) -> None:
     p.setRenderHint(QPainter.Antialiasing)
     p.setRenderHint(QPainter.TextAntialiasing)
+    if pose.posture == "sit":
+        draw_panda_sitting(p, pose, t)
+        return
+    if pose.posture == "lie":
+        draw_panda_lying(p, pose, t)
+        return
 
     # ground shadow (does not bob; shrinks when jumping)
     shrink = max(0.55, 1 + pose.bob / 40)
@@ -210,6 +218,19 @@ def draw_panda(p: QPainter, pose: Pose, t: float) -> None:
     p.translate(80, 98)
     p.rotate(pose.head_tilt)
     p.translate(-80, -98)
+    draw_head(p, pose)
+    p.restore()
+
+    p.restore()  # bob
+
+    for prop in pose.front:
+        p.save()
+        prop(p, t)
+        p.restore()
+
+
+def draw_head(p: QPainter, pose: Pose) -> None:
+    """Ears + face, centred on (80, 66); the caller sets up any tilt / offset."""
     p.setPen(QPen(FUR_EDGE, 1.3))
     p.setBrush(BLACK)
     ellipse(p, 49, 37, 13, 13)
@@ -228,9 +249,201 @@ def draw_panda(p: QPainter, pose: Pose, t: float) -> None:
     p.setBrush(BLACK)
     ellipse(p, 80, 77, 4.6, 3.3)  # nose
     draw_mouth(p, 80, 81, pose.mouth)
+
+
+BAMBOO = QColor("#8cc152")
+BAMBOO_DARK = QColor("#4f7d2a")
+BAMBOO_NODE = QColor("#c5e38f")
+LEAF = QColor("#5fae3e")
+PAD = QColor("#57525c")  # paw pads, a touch lighter than the fur so they read
+
+
+def draw_limb(
+    p: QPainter, a: tuple[float, float], b: tuple[float, float], width: float = 16
+) -> None:
+    """A black rounded limb (capsule) from ``a`` to ``b``."""
+    dx, dy = b[0] - a[0], b[1] - a[1]
+    length = math.hypot(dx, dy)
+    p.save()
+    p.translate(*a)
+    p.rotate(math.degrees(math.atan2(dy, dx)))
+    p.setPen(QPen(FUR_EDGE, 1.3))
+    p.setBrush(BLACK)
+    p.drawRoundedRect(QRectF(-width / 2, -width / 2, length + width, width), width / 2, width / 2)
     p.restore()
 
+
+def draw_sole(p: QPainter, cx: float, cy: float, angle: float) -> None:
+    """A back foot seen from below: black foot, pad and three toe beans."""
+    p.save()
+    p.translate(cx, cy)
+    p.rotate(angle)
+    p.setPen(QPen(FUR_EDGE, 1.3))
+    p.setBrush(BLACK)
+    ellipse(p, 0, 0, 12, 14)
+    p.setPen(Qt.NoPen)
+    p.setBrush(PAD)
+    ellipse(p, 0, 3, 6.5, 5.5)
+    for x in (-5.5, 0, 5.5):
+        ellipse(p, x, -6.5 + abs(x) * 0.3, 2.4, 2.4)
+    p.restore()
+
+
+def leaf(p: QPainter, x: float, y: float, angle: float, length: float = 20) -> None:
+    p.save()
+    p.translate(x, y)
+    p.rotate(angle)
+    path = QPainterPath()
+    path.moveTo(0, 0)
+    path.quadTo(length * 0.45, -length * 0.22, length, 0)
+    path.quadTo(length * 0.45, length * 0.22, 0, 0)
+    p.setPen(QPen(BAMBOO_DARK, 1.1))
+    p.setBrush(LEAF)
+    p.drawPath(path)
+    p.setPen(QPen(BAMBOO_DARK.lighter(120), 0.8))
+    p.drawLine(QPointF(1, 0), QPointF(length * 0.85, 0))
+    p.restore()
+
+
+def bamboo_stalk(
+    p: QPainter, tip: tuple[float, float], end: tuple[float, float], leaves: bool = True
+) -> None:
+    """A bamboo cane from ``tip`` (bitten end) to ``end`` with nodes and leaves at ``end``."""
+    dx, dy = end[0] - tip[0], end[1] - tip[1]
+    length = math.hypot(dx, dy)
+    p.save()
+    p.translate(*tip)
+    p.rotate(math.degrees(math.atan2(dy, dx)))
+    w = 7.0
+    if leaves:  # behind the cane
+        leaf(p, length - 6, 0, -55, 22)
+        leaf(p, length - 2, 0, -15, 24)
+        leaf(p, length - 10, 0, 40, 19)
+    p.setPen(QPen(BAMBOO_DARK, 1.4))
+    p.setBrush(BAMBOO)
+    p.drawRoundedRect(QRectF(0, -w / 2, length, w), 2.5, 2.5)
+    p.setPen(QPen(BAMBOO_DARK, 1.2))
+    p.setBrush(BAMBOO_NODE)
+    x = 13.0
+    while x < length - 4:
+        p.drawRoundedRect(QRectF(x - 1.4, -w / 2 - 0.8, 2.8, w + 1.6), 1.2, 1.2)
+        x += 17
+    # the bitten end: a pale, ragged cross-section
+    p.setPen(QPen(BAMBOO_DARK, 1.0))
+    p.setBrush(QColor("#e6f2c8"))
+    ellipse(p, 0.5, 0, 2.2, w / 2)
+    p.restore()
+
+
+def draw_panda_sitting(p: QPainter, pose: Pose, t: float) -> None:
+    """Sitting on its bottom like a real panda: back legs splayed forward with the soles
+    showing, both front paws holding a bamboo cane to its mouth."""
+    p.setPen(Qt.NoPen)
+    p.setBrush(SHADOW)
+    ellipse(p, 80, 150, 50, 6)
+
+    p.save()
+    p.translate(0, pose.bob)
+
+    # body: a broad, bottom-heavy pear
+    p.save()
+    p.translate(80, 148)
+    p.scale(1 + (1 - pose.squash) * 0.6, pose.squash)
+    p.translate(-80, -148)
+    p.setPen(outline_pen())
+    p.setBrush(WHITE)
+    ellipse(p, 80, 120, 41, 29)
+    p.setPen(Qt.NoPen)
+    p.setBrush(QColor(235, 235, 230))
+    ellipse(p, 80, 126, 22, 16)
+    p.restore()
+
+    # back legs splayed out front, soles toward us
+    draw_limb(p, (60, 132), (44, 138), 22)
+    draw_limb(p, (100, 132), (116, 138), 22)
+    draw_sole(p, 38, 136, 35)
+    draw_sole(p, 122, 136, -35)
+
+    # head, nodding along with the chewing
+    p.save()
+    p.translate(0, 6)
+    p.translate(80, 98)
+    p.rotate(pose.head_tilt)
+    p.translate(-80, -98)
+    draw_head(p, pose)
+    p.restore()
+
+    # the cane: cut end resting on a foot, past the mouth, leafy top over the shoulder;
+    # each bite pulls it in toward the face a little
+    nudge = pose.chew * 2.5
+    base = (30 - nudge, 130)
+    top = (134 - nudge, 54)
+    bamboo_stalk(p, base, top)
+
+    # front paws gripping the cane just under the chin
+    def on_cane(y: float) -> tuple[float, float]:
+        k = (y - base[1]) / (top[1] - base[1])
+        return base[0] + (top[0] - base[0]) * k, y
+
+    paw_r, paw_l = on_cane(97 - nudge), on_cane(111 - nudge)
+    draw_limb(p, (50, 104), (paw_l[0] + 2, paw_l[1] + 1), 16)
+    draw_limb(p, (110, 106), (paw_r[0] + 3, paw_r[1] + 1), 16)
+
     p.restore()  # bob
+
+    for prop in pose.front:
+        p.save()
+        prop(p, t)
+        p.restore()
+
+
+def draw_panda_lying(p: QPainter, pose: Pose, t: float) -> None:
+    """Flopped on its side, fast asleep: head resting on a front paw, back legs stacked."""
+    breathe = pose.squash
+    p.setPen(Qt.NoPen)
+    p.setBrush(SHADOW)
+    ellipse(p, 84, 150, 66, 6)
+
+    # far legs (mostly hidden behind the body)
+    draw_limb(p, (118, 132), (136, 140), 18)
+    draw_limb(p, (64, 132), (40, 144), 16)
+
+    # body, breathing from the ground up
+    p.save()
+    p.translate(96, 148)
+    p.scale(1, breathe)
+    p.translate(-96, -148)
+    p.setPen(outline_pen())
+    p.setBrush(WHITE)
+    ellipse(p, 142, 118, 7, 7)  # stubby tail
+    ellipse(p, 96, 122, 50, 25)
+    # the black band over the shoulders, like a real panda
+    band = QPainterPath()
+    band.moveTo(62, 100)
+    band.quadTo(74, 96, 80, 104)
+    band.quadTo(84, 122, 78, 140)
+    band.quadTo(68, 146, 58, 138)
+    band.closeSubpath()
+    p.setPen(QPen(FUR_EDGE, 1.3))
+    p.setBrush(BLACK)
+    p.drawPath(band)
+    p.restore()
+
+    # near back leg, curled up toward the belly
+    draw_limb(p, (118, 128), (112, 144), 20)
+    draw_sole(p, 112, 142, -70)
+
+    # near front paw: the pillow
+    draw_limb(p, (70, 126), (30, 144), 17)
+
+    # head, resting sideways on the paw
+    p.save()
+    p.translate(44, 114 + (1 - breathe) * 20)
+    p.rotate(-18 + pose.head_tilt)
+    p.scale(0.74, 0.74)
+    p.translate(-80, -66)
+    draw_head(p, pose)
+    p.restore()
 
     for prop in pose.front:
         p.save()
@@ -377,11 +590,11 @@ def question_dots(p: QPainter, t: float) -> None:
         ellipse(p, 127 + i * 8, 15, 2.4, 2.4)
 
 
-def zzz(p: QPainter, t: float) -> None:
+def zzz(p: QPainter, t: float, x0: float = 118, y0: float = 46) -> None:
     for i, (size, phase) in enumerate([(9, 0.0), (12, 0.33), (15, 0.66)]):
         k = (t + phase) % 1.0
-        x = 118 + i * 9 + math.sin(k * math.pi * 2) * 3
-        y = 46 - k * 40
+        x = x0 + i * 9 + math.sin(k * math.pi * 2) * 3
+        y = y0 - k * 40
         alpha = int(255 * math.sin(k * math.pi))
         p.setPen(QPen(QColor(90, 110, 170, alpha), 1))
         p.setFont(font(size))
@@ -577,6 +790,56 @@ def sleeping(t: float, i: int) -> Pose:
     )
 
 
+def bamboo_crumbs(p: QPainter, t: float) -> None:
+    """Little green bits that fall from the mouth while chewing."""
+    p.setPen(Qt.NoPen)
+    for i, (x, phase) in enumerate([(78, 0.0), (90, 0.45), (72, 0.7)]):
+        k = (t + phase) % 1.0
+        if k > 0.6:
+            continue
+        c = QColor(LEAF if i % 2 else BAMBOO)
+        c.setAlpha(int(255 * (1 - k / 0.6)))
+        p.setBrush(c)
+        p.save()
+        p.translate(x + k * 6 * (1 if i % 2 else -1), 96 + k * 40)
+        p.rotate(k * 300 + i * 40)
+        p.drawRect(QRectF(-1.6, -1, 3.2, 2))
+        p.restore()
+
+
+def eating(t: float, i: int) -> Pose:
+    """Panda idle: sitting back, munching bamboo, head nodding with every bite."""
+    chew = 0.5 + 0.5 * math.sin(t * TAU * 2)
+    return Pose(
+        posture="sit",
+        chew=chew,
+        bob=chew * 0.8,
+        head_tilt=-3 + 3 * chew,
+        eyes="happy" if i in (6, 7) else "down",
+        look=(2, 0),
+        mouth="o" if chew > 0.5 else "flat",
+        squash=1 - 0.012 * math.sin(t * TAU),
+        front=[bamboo_crumbs],
+    )
+
+
+def lying_asleep(t: float, i: int) -> Pose:
+    """Panda sleeping: flopped on its side, breathing slowly."""
+    return Pose(
+        posture="lie",
+        squash=1 + 0.03 * math.sin(t * TAU),
+        head_tilt=1.5 * math.sin(t * TAU),
+        eyes="closed",
+        mouth="sleepy",
+        front=[lambda p, t: zzz(p, t, 64, 88)],  # rising from the head, not the empty sky
+    )
+
+
+# The panda's own takes on these states (other characters keep the shared poses).
+PANDA_POSES: dict[str, Callable[[float, int], Pose]] = {"idle": eating, "sleeping": lying_asleep}
+STAY = {"style": "stay", "speed": 36, "faces": "front"}  # eats in place instead of strolling
+
+
 def roaming(t: float, i: int) -> Pose:
     """A front-facing waddle: rock side to side, bounce on each step, arms swinging."""
     w = math.sin(t * TAU)
@@ -696,7 +959,7 @@ def main() -> None:
     args = ap.parse_args()
     _app = QGuiApplication([])
     args.out.mkdir(parents=True, exist_ok=True)
-    rendered = generate(args.out)
+    rendered = generate(args.out, poses=PANDA_POSES, roam=STAY)
     total = sum(len(v) for v in rendered.values())
     print(f"wrote {total} frames for {len(rendered)} states to {args.out}")
     if args.sheet:

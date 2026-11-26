@@ -5,6 +5,8 @@ dragged it to) and always comes back there when work starts:
 
 * ``walk``: strolls left and right along the home's height, pausing in between.
 * ``fly``: flits around in the air above and beside home, hovering in between.
+* ``stay``: doesn't wander at all; its idle animation does the entertaining (the panda
+  sits and munches bamboo).
 
 The window calls ``start()`` when the pet becomes idle, ``go_home()`` when it gets busy
 and ``step(now)`` on every tick; ``step`` returns the new top-left corner.
@@ -16,7 +18,7 @@ import math
 import random
 from dataclasses import dataclass
 
-STYLES = ("walk", "fly")
+STYLES = ("walk", "fly", "stay")
 FACINGS = ("front", "left", "right")
 
 WALK_RANGE = 320.0  # px either side of home
