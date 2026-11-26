@@ -76,7 +76,7 @@
     }
   },
   "roam": {
-    "style": "walk",
+    "style": "stay",
     "speed": 36,
     "faces": "front"
   },

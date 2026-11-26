@@ -273,9 +273,19 @@ def test_drag_sets_new_home_and_position_saves_home(qapp, pet_home, monkeypatch)
     w.close()
 
 
-def test_roam_menu_toggle(qapp, pet_home, monkeypatch):
+def test_panda_stays_home_and_eats_bamboo(qapp, pet_home, monkeypatch):
     clock = [1000.0]
     w = _roam_window(qapp, pet_home, "panda", monkeypatch, clock)
+    w.set_display(disp(State.IDLE))
+    _tick(w, clock, 30)
+    assert not w._roamer.active and not w._roam_timer.isActive()  # "stay": no strolling
+    assert w._anim.name == "idle"  # sitting with its bamboo
+    w.close()
+
+
+def test_roam_menu_toggle(qapp, pet_home, monkeypatch):
+    clock = [1000.0]
+    w = _roam_window(qapp, pet_home, "cat", monkeypatch, clock)
     assert "Wander around when idle" in [a.text() for a in w.build_menu().actions()]
     w.set_display(disp(State.IDLE))
     _tick(w, clock, 20)

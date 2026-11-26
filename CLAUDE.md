@@ -87,7 +87,8 @@ bao/characters/<id>/
 - Sound values can also be `"system:Glass"`, which plays `/System/Library/Sounds/Glass.aiff`.
 - Validate manifests on load. A broken character logs an error and is skipped; it must never crash the app.
 - `roam` (optional; default walk/40/front) and a `roaming` state drive wandering while idle:
-  `walk` strolls along the home's height, `fly` flits above it; `faces: left|right` art is
+  `walk` strolls along the home's height, `fly` flits above it, `stay` never leaves home (the
+  panda sits and eats bamboo as its idle instead); `faces: left|right` art is
   mirrored toward travel. Invalid `roam` → ManifestError (character skipped).
 - User characters can also live in `~/.bao/characters/` and override the built-in ones by `id`.
 
@@ -125,13 +126,14 @@ hooks/bao-hook         # POSIX sh, run as `sh …/bao-hook` (Git Bash on Windows
                        #   settings.json has bao.hook entries (no double events)
 skills/pet/SKILL.md    # plugin skill: set up / check / control the pet via the CLI + config.json
 tools/
-  gen_panda.py       # draws placeholder panda frames with QPainter (poses, props, generate())
+  gen_panda.py       # draws placeholder panda frames with QPainter (poses, props, generate());
+                     #   panda-only PANDA_POSES: idle = sitting with bamboo, sleeping = lying on its side
   gen_cat.py         # draws the cat with the panda's poses/props
   gen_penguin.py     # draws the penguin with the panda's poses/props
   gen_hummingbird.py # draws the hummingbird with the panda's poses/props
   gen_owl.py         # draws the owl with the panda's poses/props
   gen_icon.py        # draws the panda app icon → packaging/Bao.icns
-  gen_sounds.py      # synthesizes .wav cues: panda chimes, cat meows/purr, penguin peeps/squawks,
+  gen_sounds.py      # synthesizes .wav cues: panda bleats/chirps/huff, cat meows/purr, penguin peeps/squawks,
                      #   hummingbird chirps/wing hum, owl hoots/screech
 packaging/
   bao.spec           # PyInstaller: Bao.app with Contents/MacOS/Bao (Qt) + bao-hook (no Qt)
@@ -163,7 +165,7 @@ python tools/gen_hummingbird.py           # regenerate hummingbird frames
 python tools/gen_owl.py                   # regenerate owl frames
 python tools/gen_icon.py                  # regenerate packaging/Bao.icns
 packaging/build_mac.sh                    # build dist/Bao.app + .dmg (pip install -e ".[app]")
-python tools/gen_sounds.py                # regenerate panda chimes (--character cat | penguin | hummingbird | owl)
+python tools/gen_sounds.py                # regenerate panda calls (--character cat | penguin | hummingbird | owl)
 pytest
 ```
 

@@ -192,6 +192,8 @@ class PetWindow(QWidget):
 
     def _wants_roam(self) -> bool:
         d = self.display
+        if self._roamer.spec.style == "stay":
+            return False  # a homebody: its idle animation happens in place
         return bool(self.config.roam and d is not None and d.state in ROAM_STATES)
 
     def _update_roaming(self) -> None:

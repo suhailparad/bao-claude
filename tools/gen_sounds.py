@@ -1,13 +1,15 @@
 """Synthesize a character's sound cues as small WAV files (stdlib only).
 
-    python tools/gen_sounds.py                    # panda chimes -> bao/characters/panda/sounds/
+    python tools/gen_sounds.py                    # panda calls  -> bao/characters/panda/sounds/
     python tools/gen_sounds.py --character cat    # cat meows    -> bao/characters/cat/sounds/
     python tools/gen_sounds.py --character penguin  # penguin peeps -> characters/penguin/sounds/
     python tools/gen_sounds.py --character hummingbird  # chirps + wing hum
     python tools/gen_sounds.py --character owl    # hoots + a screech
     python tools/gen_sounds.py --play done        # also plays one (macOS afplay)
 
-Panda: soft marimba/bell-like tones (a few decaying partials per note).
+Panda: what giant pandas really sound like: goat-like bleats (a wobbling "meh-eh"),
+high excited chirps, squeals for alerts and a sleepy huff, using the cat's voice model.
+(The old marimba chimes in CUES/synth() stay around as a neutral fallback voice.)
 Cat: synthesized meows, chirps and a purr (a harmonic voice whose pitch glides while
 formants move from "ee" to "oo"). Penguin: the same voice, pitched up and buzzier: quick
 peeps, raspy squawks and a little bray. Hummingbird: quick high chirps (pure tones that
@@ -271,6 +273,80 @@ PENGUIN_CUES: dict[str, dict] = {
 }
 
 
+def _bleat(start: float, dur: float, lo: float, hi: float, gain: float = 1.0, **extra) -> dict:
+    """A giant-panda bleat: a nasal "meh-eh" that wobbles like a young goat's."""
+    return {
+        "start": start,
+        "dur": dur,
+        "gain": gain,
+        "pitch": [(0, lo), (0.25, hi), (1, lo * 0.92)],
+        "vowel": [(0, "e"), (0.3, "a"), (1, "e")],
+        "vibrato": (9.5, 0.035),  # the bleat's wobble...
+        "trill": (9.5, 0.45),  # ...in pitch and loudness together
+        **extra,
+    }
+
+
+def _chirp(start: float, dur: float, lo: float, hi: float, gain: float = 1.0) -> dict:
+    """A high squeaky panda chirp (cubs, or a happy adult)."""
+    return {
+        "start": start,
+        "dur": dur,
+        "gain": gain,
+        "pitch": [(0, lo), (0.4, hi), (1, hi * 0.9)],
+        "vowel": [(0, "i"), (0.5, "e"), (1, "i")],
+    }
+
+
+PANDA_CUES: dict[str, dict] = {
+    # a friendly two-part bleat: "meh-eh!"
+    "hello": {"calls": [_bleat(0.0, 0.2, 380, 470, 0.85), _bleat(0.22, 0.36, 420, 540)]},
+    # one soft bleat that lifts at the end: still there?
+    "waiting": {
+        "calls": [
+            {
+                **_bleat(0.0, 0.42, 400, 450),
+                "pitch": [(0, 400), (0.5, 430), (1, 560)],
+                "vowel": [(0, "e"), (0.5, "a"), (1, "i")],
+            }
+        ],
+        "peak": 0.42,
+    },
+    # three urgent squeals
+    "alert": {
+        "calls": [
+            {
+                "start": i * 0.19,
+                "dur": 0.15,
+                "gain": 1.0,
+                "pitch": [(0, 900), (0.3, 1350), (1, 1150)],
+                "vowel": [(0, "e"), (0.3, "i"), (1, "e")],
+                "trill": (38, 0.3),
+            }
+            for i in range(3)
+        ],
+        "peak": 0.58,
+    },
+    # excited chirps climbing up, then a happy long bleat
+    "done": {
+        "calls": [
+            _chirp(0.0, 0.09, 950, 1250, 0.8),
+            _chirp(0.11, 0.09, 1050, 1400, 0.85),
+            _chirp(0.22, 0.1, 1150, 1550, 0.9),
+            _bleat(0.38, 0.52, 430, 580),
+        ],
+    },
+    # a drowsy falling bleat and a sleepy huff
+    "bye": {
+        "calls": [
+            _bleat(0.0, 0.48, 360, 400, vowel=[(0, "e"), (0.4, "a"), (1, "o")]),
+            {"huff": True, "start": 0.5, "dur": 0.45, "gain": 0.7},
+        ],
+        "peak": 0.48,
+    },
+}
+
+
 def _lerp_points(points: list, x: float):
     """Piecewise-linear lookup in [(frac, value)], values being floats or float tuples."""
     if x <= points[0][0]:
@@ -300,7 +376,7 @@ def synth_meow(call: dict, rng: random.Random) -> list[float]:
     pitch = call["pitch"]
     vowel = [(x, VOWELS[v]) for x, v in call["vowel"]]
     trill = call.get("trill")
-    vib_rate, vib_depth = 5.5, 0.012
+    vib_rate, vib_depth = call.get("vibrato", (5.5, 0.012))
     phase = 0.0
     block = 64
     for b0 in range(0, n, block):
@@ -341,12 +417,31 @@ def synth_purr(call: dict, rng: random.Random) -> list[float]:
     return out
 
 
+def synth_huff(call: dict, rng: random.Random) -> list[float]:
+    """A breathy snort/huff: band-limited noise with a quick swell and a long fade."""
+    n = int(call["dur"] * RATE)
+    out = [0.0] * n
+    lp = slow = 0.0
+    for i in range(n):
+        x = i / n
+        lp += 0.22 * (rng.uniform(-1, 1) - lp)  # take the hiss off the top...
+        slow += 0.01 * (lp - slow)  # ...and the rumble off the bottom: a breath
+        env = min(1.0, x / 0.08) * (1 - x) ** 2
+        out[i] = call["gain"] * env * (lp - slow) * 2.5
+    return out
+
+
 def synth_cat(spec: dict, seed: int) -> list[float]:
     rng = random.Random(seed)  # deterministic: regenerating gives identical files
     total = max(c["start"] + c["dur"] for c in spec["calls"]) + 0.05
     buf = [0.0] * int(total * RATE)
     for call in spec["calls"]:
-        part = synth_purr(call, rng) if call.get("purr") else synth_meow(call, rng)
+        if call.get("purr"):
+            part = synth_purr(call, rng)
+        elif call.get("huff"):
+            part = synth_huff(call, rng)
+        else:
+            part = synth_meow(call, rng)
         s0 = int(call["start"] * RATE)
         for i, v in enumerate(part):
             buf[s0 + i] += v
@@ -522,7 +617,7 @@ def synth_owl(spec: dict, seed: int) -> list[float]:
 
 
 VOICES = {
-    "panda": "chime",
+    "panda": "panda",
     "cat": "cat",
     "penguin": "penguin",
     "hummingbird": "bird",
@@ -537,6 +632,8 @@ def render(voice: str, name: str) -> list[float]:
         return synth_bird(BIRD_CUES[name], seed=sum(map(ord, name)) + 2)
     if voice == "owl":
         return synth_owl(OWL_CUES[name], seed=sum(map(ord, name)) + 3)
+    if voice == "panda":  # the cat's voice model again: bleats, chirps, squeals, a huff
+        return synth_cat(PANDA_CUES[name], seed=sum(map(ord, name)) + 4)
     if voice == "penguin":  # same voice model as the cat, different calls
         return synth_cat(PENGUIN_CUES[name], seed=sum(map(ord, name)) + 1)
     spec = CUES[name]
