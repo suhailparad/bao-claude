@@ -3,7 +3,7 @@
 from pathlib import Path
 
 ROOT = Path(SPECPATH).parent
-VERSION = "0.2.0"
+VERSION = "0.3.0"
 
 a = Analysis(
     [str(ROOT / "packaging" / "bao_app.py")],
