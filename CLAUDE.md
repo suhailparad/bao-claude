@@ -117,6 +117,7 @@ bao/
   characters/cat/    # ginger tabby (same poses/props as the panda)
   characters/penguin/ # penguin with flippers for arms (same poses/props as the panda)
   characters/hummingbird/ # colourful hummingbird; wings for arms, blur-buzzing while awake
+  characters/owl/    # tawny owl; barred wings for arms, swivels its head while thinking
 .claude-plugin/        # Claude Code plugin: plugin.json, marketplace.json (source "./"), icon.png
 hooks/hooks.json       # plugin hooks (same events as installer.HOOK_EVENTS; keep in sync)
 hooks/bao-hook         # POSIX sh, run as `sh …/bao-hook` (Git Bash on Windows): runtime from $BAO_PYTHON,
@@ -128,9 +129,10 @@ tools/
   gen_cat.py         # draws the cat with the panda's poses/props
   gen_penguin.py     # draws the penguin with the panda's poses/props
   gen_hummingbird.py # draws the hummingbird with the panda's poses/props
+  gen_owl.py         # draws the owl with the panda's poses/props
   gen_icon.py        # draws the panda app icon → packaging/Bao.icns
   gen_sounds.py      # synthesizes .wav cues: panda chimes, cat meows/purr, penguin peeps/squawks,
-                     #   hummingbird chirps/wing hum
+                     #   hummingbird chirps/wing hum, owl hoots/screech
 packaging/
   bao.spec           # PyInstaller: Bao.app with Contents/MacOS/Bao (Qt) + bao-hook (no Qt)
   build_mac.sh       # build dist/Bao.app + DMG, with a smoke test
@@ -158,9 +160,10 @@ python tools/gen_panda.py                 # regenerate panda frames
 python tools/gen_cat.py                   # regenerate cat frames
 python tools/gen_penguin.py               # regenerate penguin frames
 python tools/gen_hummingbird.py           # regenerate hummingbird frames
+python tools/gen_owl.py                   # regenerate owl frames
 python tools/gen_icon.py                  # regenerate packaging/Bao.icns
 packaging/build_mac.sh                    # build dist/Bao.app + .dmg (pip install -e ".[app]")
-python tools/gen_sounds.py                # regenerate panda chimes (--character cat | penguin | hummingbird)
+python tools/gen_sounds.py                # regenerate panda chimes (--character cat | penguin | hummingbird | owl)
 pytest
 ```
 

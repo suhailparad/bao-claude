@@ -4,13 +4,15 @@
     python tools/gen_sounds.py --character cat    # cat meows    -> bao/characters/cat/sounds/
     python tools/gen_sounds.py --character penguin  # penguin peeps -> characters/penguin/sounds/
     python tools/gen_sounds.py --character hummingbird  # chirps + wing hum
+    python tools/gen_sounds.py --character owl    # hoots + a screech
     python tools/gen_sounds.py --play done        # also plays one (macOS afplay)
 
 Panda: soft marimba/bell-like tones (a few decaying partials per note).
 Cat: synthesized meows, chirps and a purr (a harmonic voice whose pitch glides while
 formants move from "ee" to "oo"). Penguin: the same voice, pitched up and buzzier: quick
 peeps, raspy squawks and a little bray. Hummingbird: quick high chirps (pure tones that
-sweep in pitch), twittering trills and a soft wing hum. Updates the "sounds" section of
+sweep in pitch), twittering trills and a soft wing hum. Owl: soft, breathy hoots that
+glide in pitch, and a raspy "kee-kee" screech for alerts. Updates the "sounds" section of
 the character's manifest.json.
 """
 
@@ -438,7 +440,94 @@ def synth_bird(spec: dict, seed: int) -> list[float]:
     return [x / m * peak for x in buf]
 
 
-VOICES = {"panda": "chime", "cat": "cat", "penguin": "penguin", "hummingbird": "bird"}
+# ---------------------------------------------------------------- owl voice
+
+# Parts: {"hoot": (f_start, f_end)} a soft, breathy, hollow "hoo" whose pitch glides;
+# {"screech": (f_start, f_end)} a short raspy "kee". Optional "vibrato" (Hz) on hoots.
+OWL_CUES: dict[str, dict] = {
+    # "hoo-HOO!": a friendly rising pair
+    "hello": {
+        "parts": [
+            {"hoot": (360, 380), "start": 0.0, "dur": 0.2, "gain": 0.8},
+            {"hoot": (430, 470), "start": 0.26, "dur": 0.38, "gain": 1.0},
+        ],
+    },
+    # one soft, questioning "hoo?" that lifts at the end
+    "waiting": {
+        "parts": [{"hoot": (390, 450), "start": 0.0, "dur": 0.34, "gain": 1.0}],
+        "peak": 0.42,
+    },
+    # two sharp, raspy "kee-kee!"s
+    "alert": {
+        "parts": [
+            {"screech": (1900, 1500), "start": 0.0, "dur": 0.16, "gain": 1.0},
+            {"screech": (2000, 1550), "start": 0.22, "dur": 0.2, "gain": 1.0},
+        ],
+        "peak": 0.5,
+    },
+    # the classic "hoo, hoo-hoo, hoooo" with a warbling last note
+    "done": {
+        "parts": [
+            {"hoot": (420, 430), "start": 0.0, "dur": 0.16, "gain": 0.85},
+            {"hoot": (440, 450), "start": 0.24, "dur": 0.1, "gain": 0.8},
+            {"hoot": (450, 460), "start": 0.37, "dur": 0.1, "gain": 0.8},
+            {"hoot": (470, 440), "start": 0.52, "dur": 0.55, "gain": 1.0, "vibrato": 7},
+        ],
+    },
+    # a long, sleepy "hoooo" sinking and fading away
+    "bye": {
+        "parts": [{"hoot": (430, 320), "start": 0.0, "dur": 0.7, "gain": 1.0, "fade": True}],
+        "peak": 0.42,
+    },
+}
+
+
+def synth_owl(spec: dict, seed: int) -> list[float]:
+    rng = random.Random(seed)
+    total = max(part["start"] + part["dur"] for part in spec["parts"]) + 0.05
+    buf = [0.0] * int(total * RATE)
+    for part in spec["parts"]:
+        n = int(part["dur"] * RATE)
+        s0 = int(part["start"] * RATE)
+        phase = 0.0
+        lp = 0.0
+        for i in range(n):
+            x = i / n
+            t = i / RATE
+            if "hoot" in part:  # hollow tone (mostly fundamental) + a breath of air
+                f0, f1 = part["hoot"]
+                f = f0 + (f1 - f0) * x
+                if part.get("vibrato"):
+                    f *= 1 + 0.02 * math.sin(2 * math.pi * part["vibrato"] * t) * x
+                phase += 2 * math.pi * f / RATE
+                lp += 0.05 * (rng.uniform(-1, 1) - lp)
+                v = math.sin(phase) + 0.12 * math.sin(2 * phase) + 0.05 * math.sin(3 * phase)
+                v += 1.2 * lp * (1 - x)  # breathy onset
+                attack = min(1.0, x / 0.18)
+                env = attack * ((1 - x) ** 1.5 if part.get("fade") else min(1.0, (1 - x) / 0.35))
+            else:  # screech: buzzy tone, roughened by fast noisy amplitude modulation
+                f0, f1 = part["screech"]
+                f = f0 + (f1 - f0) * x**0.8
+                phase += 2 * math.pi * f / RATE
+                lp += 0.4 * (rng.uniform(-1, 1) - lp)
+                rough = 0.6 + 0.4 * math.sin(2 * math.pi * 90 * t) + 0.5 * lp
+                v = rough * (
+                    math.sin(phase) + 0.45 * math.sin(2 * phase) + 0.25 * math.sin(3 * phase)
+                )
+                env = math.sin(math.pi * x) ** 0.5
+            buf[s0 + i] += part["gain"] * env * v
+    m = max(abs(x) for x in buf) or 1.0
+    peak = spec.get("peak", 0.5)
+    return [x / m * peak for x in buf]
+
+
+VOICES = {
+    "panda": "chime",
+    "cat": "cat",
+    "penguin": "penguin",
+    "hummingbird": "bird",
+    "owl": "owl",
+}
 
 
 def render(voice: str, name: str) -> list[float]:
@@ -446,6 +535,8 @@ def render(voice: str, name: str) -> list[float]:
         return synth_cat(CAT_CUES[name], seed=sum(map(ord, name)))
     if voice == "bird":
         return synth_bird(BIRD_CUES[name], seed=sum(map(ord, name)) + 2)
+    if voice == "owl":
+        return synth_owl(OWL_CUES[name], seed=sum(map(ord, name)) + 3)
     if voice == "penguin":  # same voice model as the cat, different calls
         return synth_cat(PENGUIN_CUES[name], seed=sum(map(ord, name)) + 1)
     spec = CUES[name]

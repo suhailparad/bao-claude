@@ -1,6 +1,6 @@
 ---
 name: pet
-description: Set up, check and control the bao desktop pet that shows what Claude Code is doing. Use when the user mentions bao, "the pet", "the panda" (or cat, penguin, hummingbird), or asks to set it up, check why it isn't reacting, switch character, resize it, mute it or change its sounds, turn on Do Not Disturb or quiet hours, stop it wandering, hide the speech bubble, or quit it.
+description: Set up, check and control the bao desktop pet that shows what Claude Code is doing. Use when the user mentions bao, "the pet", "the panda" (or cat, penguin, hummingbird, owl), or asks to set it up, check why it isn't reacting, switch character, resize it, mute it or change its sounds, turn on Do Not Disturb or quiet hours, stop it wandering, hide the speech bubble, or quit it.
 ---
 
 # bao desktop pet
@@ -57,7 +57,7 @@ Everything else lives in `~/.bao/config.json` (create it if missing, keep unknow
 
 | Key | Meaning |
 |---|---|
-| `character` | `panda`, `cat`, `penguin`, `hummingbird`, or a folder id in `~/.bao/characters/` |
+| `character` | `panda`, `cat`, `penguin`, `hummingbird`, `owl`, or a folder id in `~/.bao/characters/` |
 | `scale` | size, e.g. `0.75`, `1.0`, `1.5` |
 | `muted`, `volume` | all sound off; volume 0.0–1.0 |
 | `muted_cues` | e.g. `["hello", "bye"]` |
